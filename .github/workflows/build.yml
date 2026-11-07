@@ -6,6 +6,8 @@ on:
     paths:
       - "config/**"
       - "files/**"
+      - "scripts/**"
+      - "docs/**"
       - ".github/workflows/build.yml"
 
 permissions:

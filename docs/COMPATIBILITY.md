@@ -21,7 +21,7 @@
 - OpenWrt 25.12.6 / target `x86/legacy`, ext4 combined — для старого ПК с Legacy BIOS.
 - `kmod-usb-acm`, `kmod-usb-net-cdc-ncm`, `kmod-usb-serial-option`.
 - Русский LuCI и базовые диагностические утилиты.
-- Внешний feed 132lan и `luci-proto-xmm` пока не встраиваются в ImageBuilder: их установка должна выполняться на уже загруженной системе через APK. Это требует доступного интернета на роутере.
+- Внешний feed 132lan и `luci-proto-xmm` не встраиваются в официальный ImageBuilder. Для OpenWrt 25.x подготовлен `scripts/install-fibocom-l850.sh`: он ставит XMM-стек из 132lan и панели из 4IceG после первой загрузки. Нужен интернет на роутере. Скрипт настроен на APN `TT`, не переключает USB-режим (не пишет NVM) и не перезагружает систему автоматически.
 
 ## LTE-панель
 - Кандидат: `luci-app-3ginfo-lite`, `luci-app-sms-tool-js`, `luci-app-modemband` из APK feed 4IceG.

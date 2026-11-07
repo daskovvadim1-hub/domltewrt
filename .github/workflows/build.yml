@@ -43,6 +43,7 @@ jobs:
           cd imagebuilder
           PACKAGES="$(grep -Ev '^[[:space:]]*(#|$)' ../config/packages.txt | tr '\n' ' ')"
           make info
+          chmod +x ../files/etc/uci-defaults/99-dom-lte-wrt-branding
           make image PROFILE="generic" PACKAGES="$PACKAGES" FILES="../files"
 
       - name: Collect image and manifest

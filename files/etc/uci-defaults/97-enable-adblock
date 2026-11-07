@@ -5,6 +5,7 @@ set -eu
 uci -q set adblock.global.adb_enabled='1'
 uci -q set adblock.global.adb_dns='dnsmasq'
 uci -q set adblock.global.adb_trigger='wan'
+uci -q delete adblock.global.adb_feed || true
 uci -q add_list adblock.global.adb_feed='adguard'
 uci -q add_list adblock.global.adb_feed='adguard_tracking'
 uci -q add_list adblock.global.adb_feed='certpl'

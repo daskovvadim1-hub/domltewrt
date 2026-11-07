@@ -21,7 +21,9 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 KEYS="$WORK/keys"
 REPOS="$WORK/repositories"
-mkdir -p "$KEYS"
+ROOT="$WORK/root"
+CACHE="$WORK/cache"
+mkdir -p "$KEYS" "$ROOT/etc/apk" "$ROOT/lib/apk/db" "$CACHE"
 
 fetch_key() {
     url="$1"
@@ -32,8 +34,8 @@ fetch_key() {
 }
 
 echo "== Fetch and validate signing keys =="
-fetch_key "$LAN132_KEY" "$KEYS/132lan-repo.pem"
-fetch_key "$ICEG_KEY" "$KEYS/IceG-apkpub.pem"
+fetch_key "$LAN132_KEY" "$KEYS/132lan-repo.pub"
+fetch_key "$ICEG_KEY" "$KEYS/IceG-apkpub.pub"
 
 echo "== Check feed metadata and signed index endpoints =="
 for url in "${LAN132_MODEM}/index.json"; do
@@ -54,12 +56,12 @@ echo "KMOD feed intentionally excluded: use only the exact-ABI kmods from the of
 
 echo "== Verify repository index signatures with apk-tools 3.x =="
 apk --version
-apk --keys-dir "$KEYS" --repositories-file "$REPOS" --cache-dir "$WORK/cache" --force-refresh update
+apk --root "$ROOT" --initdb --keys-dir "$KEYS" --repositories-file "$REPOS" --cache-dir "$CACHE" --force-refresh update
 
 echo "== Check required package records =="
 require_package() {
     name="$1"
-    if ! apk --keys-dir "$KEYS" --repositories-file "$REPOS" --cache-dir "$WORK/cache" search -x "$name" | grep -q .; then
+    if ! apk --root "$ROOT" --keys-dir "$KEYS" --repositories-file "$REPOS" --cache-dir "$CACHE" search -x "$name" | grep -q .; then
         echo "MISSING: $name" >&2
         return 1
     fi

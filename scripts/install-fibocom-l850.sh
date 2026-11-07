@@ -210,7 +210,7 @@ add_opt luci-app-sms-tool-js
 add_opt luci-app-modemband
 if [ "$INSTALL_RU" = "yes" ]; then
     say "Step 3b: installing Russian translations"
-    add_opt luci-i18n-3ginfo-lite-ru
+    add_opt luci-i18n-modemdata-ru
     add_opt luci-i18n-sms-tool-js-ru
     add_opt luci-i18n-modemband-ru
 else

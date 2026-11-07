@@ -53,6 +53,30 @@ jobs:
           mkdir imagebuilder
           tar --zstd -xf imagebuilder.tar.zst -C imagebuilder --strip-components=1
 
+      - name: Configure signed modem feeds for ImageBuilder
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd imagebuilder
+
+          # ImageBuilder's host-side apk resolver trusts keys from TOPDIR.
+          curl -fL --retry 3 \
+            "https://openwrt.132lan.ru/packages/25.12/packages/repo.pem" \
+            -o 132lan-repo.pub
+          curl -fL --retry 3 \
+            "https://raw.githubusercontent.com/4IceG/Modem-extras-apk/main/myapk/IceG-apkpub.pem" \
+            -o IceG-apkpub.pub
+
+          openssl pkey -pubin -in 132lan-repo.pub -noout
+          openssl pkey -pubin -in IceG-apkpub.pub -noout
+
+          # OpenWrt 25.12 ImageBuilder reads this repository list for apk.
+          test -f repositories.conf
+          grep -qF "https://openwrt.132lan.ru/packages/25.12/packages/x86_64/modemfeed/packages.adb" repositories.conf || \
+            echo "https://openwrt.132lan.ru/packages/25.12/packages/x86_64/modemfeed/packages.adb" >> repositories.conf
+          grep -qF "https://raw.githubusercontent.com/4IceG/Modem-extras-apk/main/myapk/packages.adb" repositories.conf || \
+            echo "https://raw.githubusercontent.com/4IceG/Modem-extras-apk/main/myapk/packages.adb" >> repositories.conf
+
       - name: Build ext4 image for Legacy BIOS
         shell: bash
         run: |
@@ -62,6 +86,16 @@ jobs:
           make info
           chmod +x ../files/etc/uci-defaults/99-dom-lte-wrt-branding
           make image PROFILE="generic" PACKAGES="$PACKAGES" FILES="../files"
+
+          MANIFEST="$(find bin/targets -type f -name '*.manifest' -print -quit)"
+          test -n "$MANIFEST"
+          for pkg in luci-proto-xmm luci-app-modemdata modemdata luci-app-modemband luci-app-sms-tool-js luci-i18n-modemdata-ru luci-i18n-modemband-ru luci-i18n-sms-tool-js-ru; do
+            if ! grep -Eq "^$pkg -" "$MANIFEST"; then
+              echo "ERROR: required modem package missing from final image: $pkg" >&2
+              exit 1
+            fi
+          done
+          echo "PASS: all required XMM and modem UI packages are in the image manifest"
 
       - name: Collect image and manifest
         shell: bash

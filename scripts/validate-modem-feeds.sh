@@ -69,7 +69,6 @@ require_package() {
     echo "FOUND: $name"
 }
 require_package luci-proto-xmm
-require_package sms-tool
 require_package luci-app-modemdata
 require_package modemdata
 require_package luci-app-sms-tool-js

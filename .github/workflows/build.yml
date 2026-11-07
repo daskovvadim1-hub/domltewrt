@@ -1,0 +1,61 @@
+name: Build DOM LTE WRT
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "config/**"
+      - "files/**"
+      - ".github/workflows/build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zstd
+
+      - name: Download official OpenWrt ImageBuilder
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://downloads.openwrt.org/releases/25.12.6/targets/x86/legacy/openwrt-imagebuilder-25.12.6-x86-legacy.Linux-x86_64.tar.zst"
+          SHA="5aa4348e026bd729dc54ca7f4f3f46ab7ed0d38a52beafd02d27cebca34ed2ef"
+          curl -fL "$URL" -o imagebuilder.tar.zst
+          echo "$SHA  imagebuilder.tar.zst" | sha256sum -c -
+          mkdir imagebuilder
+          tar --zstd -xf imagebuilder.tar.zst -C imagebuilder --strip-components=1
+
+      - name: Build ext4 image for Legacy BIOS
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd imagebuilder
+          PACKAGES="$(grep -Ev '^[[:space:]]*(#|$)' ../config/packages.txt | tr '\n' ' ')"
+          make info
+          make image PROFILE="generic" PACKAGES="$PACKAGES"
+
+      - name: Collect image and manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output
+          find imagebuilder/bin/targets -type f \( -name '*ext4-combined.img.gz' -o -name '*.manifest' \) -exec cp {} output/ \;
+          test -n "$(find output -type f -name '*ext4-combined.img.gz' -print -quit)"
+          cp config/packages.txt output/packages-requested.txt
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dom-lte-wrt-x86-legacy-ext4
+          path: output/
+          if-no-files-found: error
+          retention-days: 14

@@ -29,6 +29,10 @@ luci-i18n-modemdata-ru
 luci-i18n-modemband-ru
 luci-i18n-sms-tool-js-ru
 
+# DNS ad blocking for the whole LAN (OpenWrt Adblock + Russian LuCI)
+luci-app-adblock
+luci-i18n-adblock-ru
+
 # PassWall 2 + proxy cores (signed SourceForge APK feed)
 luci-app-passwall2
 luci-i18n-passwall2-ru

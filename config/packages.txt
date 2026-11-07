@@ -1,0 +1,28 @@
+# Проверенная базовая группа для первого образа
+luci
+luci-i18n-base-ru
+ca-bundle
+curl
+htop
+nano
+tcpdump
+usbutils
+picocom
+ip-full
+
+# USB/LTE: набор диагностических и типовых драйверов.
+# Реальный интерфейс L850-GL определим после проверки lsusb и dmesg.
+kmod-usb-serial
+kmod-usb-serial-option
+kmod-usb-serial-wwan
+kmod-usb-net-qmi-wwan
+kmod-usb-net-cdc-mbim
+uqmi
+umbim
+luci-proto-qmi
+luci-proto-mbim
+
+# Не добавлены в базовый ImageBuilder намеренно:
+# PassWall 2, xray-core, sing-box и сторонняя LTE-панель.
+# Сначала проверим совместимые feeds/пакеты для OpenWrt 25.12.6.
+# TTL/IPv6 Hop Limit будет добавлен отдельным конфигом после проверки firewall.

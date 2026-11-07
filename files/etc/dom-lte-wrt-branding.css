@@ -1,0 +1,16 @@
+/* DOM-LTE-WRT-BRANDING
+ * Replace the stock LuCI brand label in the top navigation bar.
+ */
+header .brand,
+.navbar .brand {
+  font-size: 0 !important;
+  letter-spacing: 0;
+}
+header .brand::after,
+.navbar .brand::after {
+  content: "ДОМ LTE WRT";
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: inherit;
+}

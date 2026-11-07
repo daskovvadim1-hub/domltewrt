@@ -1,4 +1,4 @@
-# База OpenWrt x86/legacy: интерфейс LuCI и диагностика
+# ДОМ LTE WRT — базовые пакеты OpenWrt x86/legacy
 luci
 luci-i18n-base-ru
 ca-bundle
@@ -12,23 +12,21 @@ sms-tool
 comgt
 ip-full
 
-# Fibocom L850-GL (XMM7360) / L860-GL (XMM7560), USB NCM composition
+# Fibocom L850-GL / L860-GL: штатная композиция USB NCM + XMM
 kmod-usb-acm
 kmod-usb-net-cdc-ncm
-kmod-usb-serial-option
-
-# Дополнительные универсальные USB LTE-драйверы для диагностики;
-# они не заменяют XMM-протокол и могут не использоваться этим модемом.
 kmod-usb-serial
+kmod-usb-serial-option
 kmod-usb-serial-wwan
-kmod-usb-net-qmi-wwan
-kmod-usb-net-cdc-mbim
-uqmi
-umbim
-luci-proto-qmi
-luci-proto-mbim
+luci-proto-xmm
 
-# XMM stack и LTE-панели устанавливаются отдельным скриптом после первого запуска:
-# scripts/install-fibocom-l850.sh (132lan + 4IceG APK feeds).
-# Важно: скрипт по умолчанию использует APN=TT, НЕ меняет NVM модема и НЕ перезагружает роутер.
-# PassWall 2 / Xray / sing-box и TTL/fw4 правила — отдельный следующий этап.
+# LTE / ModemData / ModemBand / SMS Tool panels (4IceG APK feed)
+luci-app-modemdata
+modemdata
+luci-app-modemband
+luci-app-sms-tool-js
+luci-i18n-modemdata-ru
+luci-i18n-modemband-ru
+luci-i18n-sms-tool-js-ru
+
+# PassWall 2 / Xray / sing-box и TTL/fw4 — отдельный следующий этап.

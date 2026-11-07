@@ -9,7 +9,7 @@
 # ModemManager/MBIM proved unstable on this hardware.
 #
 # Installs: proto xmm (132lan feed) + sms-tool, and the GUI panels
-#           3ginfo-lite / sms-tool-js / modemband (4IceG feed) + RU i18n,
+#           modemdata / sms-tool-js / modemband (4IceG feed) + RU i18n,
 #           then creates the LTE interface and binds every panel to the AT port.
 #
 # Usage:
@@ -197,7 +197,7 @@ else
     apk update >>"$LOG" 2>&1 || warn "apk update failed"
 fi
 
-say "Step 3b: installing panels (3ginfo-lite / sms-tool-js / modemband)"
+say "Step 3b: installing panels (modemdata / sms-tool-js / modemband)"
 if [ "$ICEG_OK" != 1 ]; then
     warn "4IceG feed unavailable — the three LuCI panels cannot be installed."
     warn "The modem itself will still work (interface is created below)."
@@ -205,7 +205,7 @@ if [ "$ICEG_OK" != 1 ]; then
     warn "breaks the download. Fix: /etc/init.d/clash stop  &&  re-run this script."
 fi
 add_opt() { apk add "$1" >>"$LOG" 2>&1 && info "installed $1" || warn "skipped $1"; }
-add_opt luci-app-3ginfo-lite
+add_opt luci-app-modemdata
 add_opt luci-app-sms-tool-js
 add_opt luci-app-modemband
 if [ "$INSTALL_RU" = "yes" ]; then
@@ -252,11 +252,6 @@ fi
 
 # --- 6. bind panels to the AT port -----------------------------------------
 say "Step 6: binding panels to $AT_PORT"
-if uci -q get 3ginfo.@3ginfo[0] >/dev/null; then
-    uci set 3ginfo.@3ginfo[0].device="$AT_PORT"
-    uci set 3ginfo.@3ginfo[0].network="$IFACE"
-    uci commit 3ginfo; info "3ginfo bound"
-fi
 if uci -q get modemband.@modemband[0] >/dev/null; then
     uci set modemband.@modemband[0].set_port="$AT_PORT"
     uci set modemband.@modemband[0].iface="$IFACE"
@@ -297,9 +292,9 @@ echo "      - LuCI -> Modem(s): обнови Ctrl+F5 для сигнала / о�
 echo "      - Проверка: ifstatus $IFACE | grep -E '\"up\"|address'"
 echo "        Трафик  : ping -I wwan0 -c 20 8.8.8.8   (погоняй под нагрузкой 15-20 мин)"
 echo ""
-echo "    Если 3ginfo не показывает данные модема — проверь AT-порт:"
+echo "    Если modemdata не показывает данные модема — проверь AT-порт:"
 echo "        ls -l /dev/ttyACM* ; sms_tool -d /dev/ttyACM0 at 'AT+CGMM'   (должен ответить L850)"
-echo "        uci set 3ginfo.@3ginfo[0].device=/dev/ttyACMx; uci commit 3ginfo; /etc/init.d/uhttpd restart"
+echo "        проверь выбранный AT-порт в настройках панели modemdata."
 echo ""
 echo "    SMS: отправка работает, приём на этом модеме — нет (ограничение модема/сети, см. README)."
 echo "    КАБЕЛЬ: если ловишь 'USB disconnect' / 'error -71' — поставь толстый USB 3.0 data-кабель!"

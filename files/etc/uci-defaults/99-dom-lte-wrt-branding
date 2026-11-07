@@ -1,0 +1,22 @@
+#!/bin/sh
+# First-boot branding for DOM LTE WRT.
+# Keep the upstream LuCI application intact; only customize its visible identity.
+set -eu
+
+uci set system.@system[0].hostname='dom-lte-wrt'
+uci commit system
+
+# Update the release description shown by local system information tools.
+if [ -f /etc/openwrt_release ]; then
+  sed -i 's/^DISTRIB_DESCRIPTION=.*/DISTRIB_DESCRIPTION="DOM LTE WRT (OpenWrt-based)"/' /etc/openwrt_release
+fi
+
+# LuCI's Bootstrap theme stylesheet location may vary by release.
+# Append a small override to each installed Bootstrap cascade stylesheet.
+for css in /www/luci-static/bootstrap/cascade.css /www/luci-static/resources/view/bootstrap/cascade.css; do
+  [ -f "$css" ] || continue
+  grep -q 'DOM-LTE-WRT-BRANDING' "$css" && continue
+  cat /etc/dom-lte-wrt-branding.css >> "$css"
+done
+
+exit 0

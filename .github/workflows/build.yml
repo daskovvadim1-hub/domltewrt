@@ -59,23 +59,24 @@ jobs:
           set -euo pipefail
           cd imagebuilder
 
-          # ImageBuilder's host-side apk resolver trusts keys from TOPDIR.
+          # ImageBuilder's host-side apk resolver reads trusted keys from TOPDIR/keys.
+          mkdir -p keys
           curl -fL --retry 3 \
             "https://openwrt.132lan.ru/packages/25.12/packages/repo.pem" \
-            -o 132lan-repo.pub
+            -o keys/132lan-repo.pub
           curl -fL --retry 3 \
             "https://raw.githubusercontent.com/4IceG/Modem-extras-apk/main/myapk/IceG-apkpub.pem" \
-            -o IceG-apkpub.pub
+            -o keys/IceG-apkpub.pub
 
-          openssl pkey -pubin -in 132lan-repo.pub -noout
-          openssl pkey -pubin -in IceG-apkpub.pub -noout
+          openssl pkey -pubin -in keys/132lan-repo.pub -noout
+          openssl pkey -pubin -in keys/IceG-apkpub.pub -noout
 
-          # OpenWrt 25.12 ImageBuilder reads this repository list for apk.
-          test -f repositories.conf
-          grep -qF "https://openwrt.132lan.ru/packages/25.12/packages/x86_64/modemfeed/packages.adb" repositories.conf || \
-            echo "https://openwrt.132lan.ru/packages/25.12/packages/x86_64/modemfeed/packages.adb" >> repositories.conf
-          grep -qF "https://raw.githubusercontent.com/4IceG/Modem-extras-apk/main/myapk/packages.adb" repositories.conf || \
-            echo "https://raw.githubusercontent.com/4IceG/Modem-extras-apk/main/myapk/packages.adb" >> repositories.conf
+          # The APK-based ImageBuilder uses TOPDIR/repositories (not repositories.conf).
+          test -f repositories
+          grep -qF "https://openwrt.132lan.ru/packages/25.12/packages/x86_64/modemfeed/packages.adb" repositories || \
+            echo "https://openwrt.132lan.ru/packages/25.12/packages/x86_64/modemfeed/packages.adb" >> repositories
+          grep -qF "https://raw.githubusercontent.com/4IceG/Modem-extras-apk/main/myapk/packages.adb" repositories || \
+            echo "https://raw.githubusercontent.com/4IceG/Modem-extras-apk/main/myapk/packages.adb" >> repositories
 
       - name: Build ext4 image for Legacy BIOS
         shell: bash

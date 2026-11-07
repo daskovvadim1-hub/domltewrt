@@ -43,7 +43,7 @@ jobs:
           cd imagebuilder
           PACKAGES="$(grep -Ev '^[[:space:]]*(#|$)' ../config/packages.txt | tr '\n' ' ')"
           make info
-          make image PROFILE="generic" PACKAGES="$PACKAGES"
+          make image PROFILE="generic" PACKAGES="$PACKAGES" FILES="../files"
 
       - name: Collect image and manifest
         shell: bash

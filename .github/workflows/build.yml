@@ -53,6 +53,21 @@ jobs:
           mkdir imagebuilder
           tar --zstd -xf imagebuilder.tar.zst -C imagebuilder --strip-components=1
 
+      - name: Bundle Argon theme and Russian translation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p files/tmp/argon
+          curl -fL --retry 3 \
+            "https://github.com/jerrykuku/luci-theme-argon/releases/download/v3.1.3/luci-theme-argon-3.1.3-r1.apk" \
+            -o files/tmp/argon/luci-theme-argon-3.1.3-r1.apk
+          curl -fL --retry 3 \
+            "https://github.com/jerrykuku/luci-theme-argon/releases/download/v3.1.3/luci-i18n-argon-config-ru-3.1.3-r1.apk" \
+            -o files/tmp/argon/luci-i18n-argon-config-ru-3.1.3-r1.apk
+          cd files/tmp/argon
+          echo "75d6960715b10d96a38d55c05a57d437948de4701c313d9fa13ea37b2787bce3  luci-theme-argon-3.1.3-r1.apk" | sha256sum -c -
+          echo "3eb3d9ac66a6b83d3191b645d2daf541123e9c4d40c2806061843abf5dcc5777  luci-i18n-argon-config-ru-3.1.3-r1.apk" | sha256sum -c -
+
       - name: Configure signed modem feeds for ImageBuilder
         shell: bash
         run: |

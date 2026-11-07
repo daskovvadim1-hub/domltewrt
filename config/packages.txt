@@ -8,6 +8,8 @@ nano
 tcpdump
 usbutils
 picocom
+sms-tool
+comgt
 ip-full
 
 # Fibocom L850-GL (XMM7360) / L860-GL (XMM7560), USB NCM composition

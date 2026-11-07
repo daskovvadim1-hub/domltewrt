@@ -29,4 +29,15 @@ luci-i18n-modemdata-ru
 luci-i18n-modemband-ru
 luci-i18n-sms-tool-js-ru
 
-# PassWall 2 / Xray / sing-box и TTL/fw4 — отдельный следующий этап.
+# PassWall 2 + proxy cores (signed SourceForge APK feed)
+luci-app-passwall2
+luci-i18n-passwall2-ru
+xray-core
+sing-box
+v2ray-geoip
+v2ray-geosite
+
+# TProxy / TUN kernel support from the exact OpenWrt 25.12.6 ImageBuilder ABI
+kmod-nft-tproxy
+kmod-nft-socket
+kmod-tun

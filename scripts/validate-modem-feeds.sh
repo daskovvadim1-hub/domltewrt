@@ -56,7 +56,8 @@ echo "KMOD feed intentionally excluded: use only the exact-ABI kmods from the of
 
 echo "== Verify repository index signatures with apk-tools 3.x =="
 apk --version
-apk --root "$ROOT" --initdb --keys-dir "$KEYS" --repositories-file "$REPOS" --cache-dir "$CACHE" --force-refresh update
+apk --root "$ROOT" --keys-dir "$KEYS" --repositories-file "$REPOS" --cache-dir "$CACHE" add --initdb
+apk --root "$ROOT" --keys-dir "$KEYS" --repositories-file "$REPOS" --cache-dir "$CACHE" --force-refresh update
 
 echo "== Check required package records =="
 require_package() {

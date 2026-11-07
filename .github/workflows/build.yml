@@ -57,14 +57,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p files/tmp/argon
+          mkdir -p imagebuilder/packages
           curl -fL --retry 3 \
             "https://github.com/jerrykuku/luci-theme-argon/releases/download/v3.1.3/luci-theme-argon-3.1.3-r1.apk" \
-            -o files/tmp/argon/luci-theme-argon-3.1.3-r1.apk
+            -o imagebuilder/packages/luci-theme-argon-3.1.3-r1.apk
           curl -fL --retry 3 \
             "https://github.com/jerrykuku/luci-theme-argon/releases/download/v3.1.3/luci-i18n-argon-config-ru-3.1.3-r1.apk" \
-            -o files/tmp/argon/luci-i18n-argon-config-ru-3.1.3-r1.apk
-          cd files/tmp/argon
+            -o imagebuilder/packages/luci-i18n-argon-config-ru-3.1.3-r1.apk
+          cd imagebuilder/packages
           echo "75d6960715b10d96a38d55c05a57d437948de4701c313d9fa13ea37b2787bce3  luci-theme-argon-3.1.3-r1.apk" | sha256sum -c -
           echo "3eb3d9ac66a6b83d3191b645d2daf541123e9c4d40c2806061843abf5dcc5777  luci-i18n-argon-config-ru-3.1.3-r1.apk" | sha256sum -c -
 
@@ -109,20 +109,20 @@ jobs:
           cd imagebuilder
           PACKAGES="$(grep -Ev '^[[:space:]]*(#|$)' ../config/packages.txt | tr '\n' ' ')"
           make info
-          chmod +x ../files/etc/uci-defaults/97-enable-adblock ../files/etc/uci-defaults/98-install-argon-theme ../files/etc/uci-defaults/99-dom-lte-wrt-branding
-          test -s ../files/tmp/argon/luci-theme-argon-3.1.3-r1.apk
-          test -s ../files/tmp/argon/luci-i18n-argon-config-ru-3.1.3-r1.apk
+          chmod +x ../files/etc/uci-defaults/97-enable-adblock ../files/etc/uci-defaults/99-dom-lte-wrt-branding
+          test -s packages/luci-theme-argon-3.1.3-r1.apk
+          test -s packages/luci-i18n-argon-config-ru-3.1.3-r1.apk
           make image PROFILE="generic" ROOTFS_PARTSIZE="256" PACKAGES="$PACKAGES" FILES="../files"
 
           MANIFEST="$(find bin/targets -type f -name '*.manifest' -print -quit)"
           test -n "$MANIFEST"
-          for pkg in luci-app-adblock luci-i18n-adblock-ru luci-proto-xmm luci-app-modemdata modemdata luci-app-modemband luci-app-sms-tool-js luci-i18n-modemdata-ru luci-i18n-modemband-ru luci-i18n-sms-tool-js-ru luci-app-passwall2 luci-i18n-passwall2-ru xray-core sing-box v2ray-geoip v2ray-geosite kmod-nft-tproxy kmod-nft-socket kmod-tun; do
+          for pkg in luci-theme-argon luci-i18n-argon-config-ru luci-app-adblock luci-i18n-adblock-ru luci-proto-xmm luci-app-modemdata modemdata luci-app-modemband luci-app-sms-tool-js luci-i18n-modemdata-ru luci-i18n-modemband-ru luci-i18n-sms-tool-js-ru luci-app-passwall2 luci-i18n-passwall2-ru xray-core sing-box v2ray-geoip v2ray-geosite kmod-nft-tproxy kmod-nft-socket kmod-tun; do
             if ! grep -Eq "^$pkg -" "$MANIFEST"; then
               echo "ERROR: required modem package missing from final image: $pkg" >&2
               exit 1
             fi
           done
-          echo "PASS: adblock, XMM, and modem UI packages are in the image manifest"
+          echo "PASS: Argon, adblock, XMM, and modem UI packages are in the image manifest"
 
       - name: Collect image and manifest
         shell: bash

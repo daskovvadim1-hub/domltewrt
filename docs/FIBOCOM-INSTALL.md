@@ -38,7 +38,7 @@ logread | grep -i xmm
 ls -l /dev/ttyACM*
 ```
 
-Затем открой LuCI → Network → Interfaces. Интерфейс должен называться `LTE_Fibocom_L850`. Панели 3ginfo-lite, SMS Tool и ModemBand появятся в LuCI, если feeds и подписи пакетов доступны и установка завершилась успешно.
+Затем открой LuCI → Network → Interfaces. Интерфейс должен называться `LTE_Fibocom_L850`. Панели ModemData, SMS Tool и ModemBand появятся в LuCI, если feeds и подписи пакетов доступны и установка завершилась успешно.
 
 Не публикуй IMEI, IMSI, ICCID, номер SIM или пароли.
 

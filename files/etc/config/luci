@@ -1,0 +1,5 @@
+config core 'main'
+	option lang 'auto'
+	option mediaurlbase '/luci-static/argon'
+	option resourcebase '/luci-static/resources'
+	option ubuspath '/ubus'

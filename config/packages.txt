@@ -29,6 +29,10 @@ luci-i18n-modemdata-ru
 luci-i18n-modemband-ru
 luci-i18n-sms-tool-js-ru
 
+# Argon theme and Russian translation (installed directly into firmware image)
+luci-theme-argon
+luci-i18n-argon-config-ru
+
 # DNS ad blocking for the whole LAN (OpenWrt Adblock + Russian LuCI)
 luci-app-adblock
 luci-i18n-adblock-ru

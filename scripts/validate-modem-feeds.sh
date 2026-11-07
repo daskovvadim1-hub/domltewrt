@@ -14,6 +14,8 @@ LAN132_KEY="${LAN132_ROOT}/${REL}/packages/repo.pem"
 ICEG_ROOT="https://raw.githubusercontent.com/4IceG/Modem-extras-apk/main/myapk"
 ICEG_ADB="${ICEG_ROOT}/packages.adb"
 ICEG_KEY="${ICEG_ROOT}/IceG-apkpub.pem"
+PASSWALL_ROOT="https://master.dl.sourceforge.net/project/openwrt-passwall-build/releases/packages-${REL}/${ARCH}"
+PASSWALL_KEY="https://downloads.sourceforge.net/project/openwrt-passwall-build/apk.pub"
 
 apk add --no-cache curl jq openssl
 
@@ -36,6 +38,7 @@ fetch_key() {
 echo "== Fetch and validate signing keys =="
 fetch_key "$LAN132_KEY" "$KEYS/132lan-repo.pub"
 fetch_key "$ICEG_KEY" "$KEYS/IceG-apkpub.pub"
+fetch_key "$PASSWALL_KEY" "$KEYS/passwall.pub"
 
 echo "== Check feed metadata and signed index endpoints =="
 for url in "${LAN132_MODEM}/index.json"; do
@@ -50,6 +53,9 @@ echo "metadata OK: ${ICEG_ROOT}/index.json"
 cat > "$REPOS" <<EOF
 ${LAN132_MODEM}/packages.adb
 ${ICEG_ADB}
+${PASSWALL_ROOT}/passwall_packages/packages.adb
+${PASSWALL_ROOT}/passwall_luci/packages.adb
+${PASSWALL_ROOT}/passwall2/packages.adb
 EOF
 
 echo "KMOD feed intentionally excluded: use only the exact-ABI kmods from the official OpenWrt 25.12.6 ImageBuilder."
@@ -76,6 +82,12 @@ require_package luci-app-modemband
 require_package luci-i18n-modemdata-ru
 require_package luci-i18n-sms-tool-js-ru
 require_package luci-i18n-modemband-ru
+require_package luci-app-passwall2
+require_package luci-i18n-passwall2-ru
+require_package xray-core
+require_package sing-box
+require_package v2ray-geoip
+require_package v2ray-geosite
 
 echo "== PASS: feed signatures and required package records verified =="
 echo "Note: kmod ABI compatibility and dependency resolution against the exact ImageBuilder root are separate checks."

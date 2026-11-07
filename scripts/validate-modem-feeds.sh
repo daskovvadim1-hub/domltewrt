@@ -10,7 +10,6 @@ SOC="legacy"
 LAN132_ROOT="https://openwrt.132lan.ru/packages"
 LAN132_ARCH="${LAN132_ROOT}/${REL}/packages/${ARCH}"
 LAN132_MODEM="${LAN132_ARCH}/modemfeed"
-LAN132_KMOD="${LAN132_ARCH}/kmods/${OPENWRT_RELEASE}/${SOC}"
 LAN132_KEY="${LAN132_ROOT}/${REL}/packages/repo.pem"
 ICEG_ROOT="https://raw.githubusercontent.com/4IceG/Modem-extras-apk/main/myapk"
 ICEG_ADB="${ICEG_ROOT}/packages.adb"
@@ -37,7 +36,7 @@ fetch_key "$LAN132_KEY" "$KEYS/132lan-repo.pem"
 fetch_key "$ICEG_KEY" "$KEYS/IceG-apkpub.pem"
 
 echo "== Check feed metadata and signed index endpoints =="
-for url in "${LAN132_MODEM}/index.json" "${LAN132_KMOD}/index.json"; do
+for url in "${LAN132_MODEM}/index.json"; do
     curl --fail --silent --show-error --location "$url" --output "$WORK/index.json"
     jq -e . "$WORK/index.json" >/dev/null
     echo "metadata OK: $url"
@@ -48,9 +47,10 @@ echo "metadata OK: ${ICEG_ROOT}/index.json"
 
 cat > "$REPOS" <<EOF
 ${LAN132_MODEM}/packages.adb
-${LAN132_KMOD}/packages.adb
 ${ICEG_ADB}
 EOF
+
+echo "KMOD feed intentionally excluded: use only the exact-ABI kmods from the official OpenWrt 25.12.6 ImageBuilder."
 
 echo "== Verify repository index signatures with apk-tools 3.x =="
 apk --version

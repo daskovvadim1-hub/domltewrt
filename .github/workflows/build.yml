@@ -52,6 +52,13 @@ jobs:
           test -n "$(find output -type f -name '*ext4-combined.img.gz' -print -quit)"
           cp config/packages.txt output/packages-requested.txt
 
+      - name: Download LTE management app for OpenWrt 25.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output
+          curl -fL "https://github.com/fildunsky/luci-app-5gmodem/releases/download/v3.9.23/luci-app-5gmodem-3.9.23-r1.apk" -o output/luci-app-5gmodem-3.9.23-r1.apk
+
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:

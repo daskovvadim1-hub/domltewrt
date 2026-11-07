@@ -1,4 +1,4 @@
-# Проверенная базовая группа для первого образа
+# База OpenWrt x86/legacy: интерфейс LuCI и диагностика
 luci
 luci-i18n-base-ru
 ca-bundle
@@ -10,10 +10,14 @@ usbutils
 picocom
 ip-full
 
-# USB/LTE: набор диагностических и типовых драйверов.
-# Реальный интерфейс L850-GL определим после проверки lsusb и dmesg.
-kmod-usb-serial
+# Fibocom L850-GL (XMM7360) / L860-GL (XMM7560), USB NCM composition
+kmod-usb-acm
+kmod-usb-net-cdc-ncm
 kmod-usb-serial-option
+
+# Дополнительные универсальные USB LTE-драйверы для диагностики;
+# они не заменяют XMM-протокол и могут не использоваться этим модемом.
+kmod-usb-serial
 kmod-usb-serial-wwan
 kmod-usb-net-qmi-wwan
 kmod-usb-net-cdc-mbim
@@ -22,11 +26,7 @@ umbim
 luci-proto-qmi
 luci-proto-mbim
 
-# Приложение luci-app-5gmodem будет приложено к артефактам отдельным APK:
-# его зависимости устанавливаются пакетным менеджером на уже загруженном роутере.
-# Не добавлять его как обычный пакет ImageBuilder без проверки APK/feed.
-
-# Не добавлены в базовый ImageBuilder намеренно:
-# PassWall 2, xray-core, sing-box и сторонняя LTE-панель.
-# Сначала проверим совместимые feeds/пакеты для OpenWrt 25.12.6.
-# TTL/IPv6 Hop Limit будет добавлен отдельным конфигом после проверки firewall.
+# XMM stack: luci-proto-xmm и xmm-modem устанавливаются из feed 132lan
+# после первого запуска (в ImageBuilder официального feed нет).
+# LTE GUI panels (3ginfo-lite / sms-tool-js / modemband) ставятся из 4IceG APK feed.
+# PassWall 2 / Xray / sing-box и TTL/fw4 правила — отдельный следующий этап.

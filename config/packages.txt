@@ -26,7 +26,7 @@ umbim
 luci-proto-qmi
 luci-proto-mbim
 
-# XMM stack: luci-proto-xmm и xmm-modem устанавливаются из feed 132lan
-# после первого запуска (в ImageBuilder официального feed нет).
-# LTE GUI panels (3ginfo-lite / sms-tool-js / modemband) ставятся из 4IceG APK feed.
+# XMM stack и LTE-панели устанавливаются отдельным скриптом после первого запуска:
+# scripts/install-fibocom-l850.sh (132lan + 4IceG APK feeds).
+# Важно: скрипт по умолчанию использует APN=TT, НЕ меняет NVM модема и НЕ перезагружает роутер.
 # PassWall 2 / Xray / sing-box и TTL/fw4 правила — отдельный следующий этап.

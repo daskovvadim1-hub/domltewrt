@@ -27,8 +27,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y             bc build-essential bzip2 ccache curl device-tree-compiler             file flex gawk gcc-multilib g++-multilib gettext git             lib ncurses-dev libssl-dev python3 python3-pip python3-setuptools             rsync subversion swig time unzip wget xsltproc zlib1g-dev             libelf-dev libgmp3-dev libmpc-dev libmpfr-dev             repo
-      - name: Checkout DOM LTE WRT overlay
+          sudo apt-get install -y             bc build-essential bzip2 ccache curl device-tree-compiler             file flex gawk gcc-multilib g++-multilib gettext git             lib ncurses-dev libssl-dev python3 python3-pip python3-setuptools             rsync subversion swig time unzip wget xsltproc zlib1g-dev             libelf-dev libgmp3-dev libmpc-dev libmpfr-dev       - name: Checkout DOM LTE WRT overlay
         uses: actions/checkout@v4
         with:
           ref: nanopi-zero2

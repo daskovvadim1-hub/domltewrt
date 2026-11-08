@@ -55,28 +55,53 @@ jobs:
           lsblk -f "$LOOP" | tee image-filesystems.txt
 
           ROOT=""
+          APK_BIN=""
+          : > rootfs-layout.txt
           while read -r PART; do
             [ "$PART" = "$LOOP" ] && continue
             [ -b "$PART" ] || continue
             TYPE="$(sudo blkid -s TYPE -o value "$PART" 2>/dev/null || true)"
-            case "$TYPE" in
-              ext4|squashfs)
-                sudo mkdir -p /mnt/friendlywrt-probe
-                if sudo mount "$PART" /mnt/friendlywrt-probe 2>/dev/null; then
-                  if [ -f /mnt/friendlywrt-probe/etc/openwrt_release ] && [ -d /mnt/friendlywrt-probe/etc/apk ]; then
-                    ROOT="/mnt/friendlywrt-probe"
-                    MOUNTED="$ROOT"
-                    break
+            [ "$TYPE" = "ext4" ] || continue
+            sudo mkdir -p /mnt/friendlywrt-probe
+            if ! sudo mount "$PART" /mnt/friendlywrt-probe 2>/dev/null; then
+              continue
+            fi
+            if [ -f /mnt/friendlywrt-probe/etc/openwrt_release ]; then
+              {
+                echo "PARTITION=$PART"
+                cat /mnt/friendlywrt-probe/etc/openwrt_release
+                echo "-- package manager candidates --"
+                for candidate in /sbin/apk /usr/bin/apk /bin/apk /usr/sbin/apk; do
+                  if [ -e "/mnt/friendlywrt-probe$candidate" ]; then
+                    ls -l "/mnt/friendlywrt-probe$candidate"
                   fi
-                  sudo umount /mnt/friendlywrt-probe
+                done
+                echo "-- apk files --"
+                find /mnt/friendlywrt-probe -maxdepth 5 -iname '*apk*' -print 2>/dev/null | head -80
+                echo "-- module dirs --"
+                find /mnt/friendlywrt-probe/lib/modules -mindepth 1 -maxdepth 1 -type d -printf '%f\\n' 2>/dev/null || true
+                echo
+              } | tee -a rootfs-layout.txt
+              for candidate in /sbin/apk /usr/bin/apk /bin/apk /usr/sbin/apk; do
+                if [ -x "/mnt/friendlywrt-probe$candidate" ]; then
+                  ROOT="/mnt/friendlywrt-probe"
+                  APK_BIN="$candidate"
+                  MOUNTED="$ROOT"
+                  break
                 fi
-                ;;
-            esac
+              done
+            fi
+            if [ -n "$ROOT" ]; then
+              break
+            fi
+            sudo umount /mnt/friendlywrt-probe
           done < <(sudo lsblk -lnpo NAME "$LOOP")
 
           if [ -z "$ROOT" ]; then
-            echo "Could not locate a FriendlyWrt root filesystem with /etc/apk." >&2
-            exit 1
+            echo "No rootfs partition with an executable apk package manager was found. See rootfs-layout.txt." | tee probe-result.txt
+            cat probe-result.txt >> "$GITHUB_STEP_SUMMARY"
+            cat rootfs-layout.txt >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
 
           echo "## Base image" >> "$GITHUB_STEP_SUMMARY"
@@ -102,11 +127,11 @@ jobs:
           }
           trap 'cleanup_chroot; cleanup' EXIT
 
-          sudo chroot "$ROOT" /sbin/apk --cache-dir /tmp/dom-lte-apk-cache update
+          sudo chroot "$ROOT" "$APK_BIN" --cache-dir /tmp/dom-lte-apk-cache update
           PACKAGES="ca-bundle curl htop nano tcpdump usbutils picocom ip-full comgt sms-tool luci-i18n-base-ru luci-theme-argon luci-i18n-argon-config-ru luci-app-adblock luci-i18n-adblock-ru kmod-usb-acm kmod-usb-net-cdc-ncm kmod-usb-net-rndis kmod-usb-serial kmod-usb-serial-option kmod-usb-serial-wwan kmod-nft-tproxy kmod-nft-socket kmod-tun mwan3 luci-app-mwan3"
           : > package-availability.txt
           for PKG in $PACKAGES; do
-            if sudo chroot "$ROOT" /sbin/apk --cache-dir /tmp/dom-lte-apk-cache search -x "$PKG" | grep -q .; then
+            if sudo chroot "$ROOT" "$APK_BIN" --cache-dir /tmp/dom-lte-apk-cache search -x "$PKG" | grep -q .; then
               echo "AVAILABLE $PKG" | tee -a package-availability.txt
             else
               echo "MISSING   $PKG" | tee -a package-availability.txt
@@ -127,5 +152,6 @@ jobs:
             apk-repositories.txt
             package-availability.txt
             probe-result.txt
+            rootfs-layout.txt
           if-no-files-found: ignore
           retention-days: 7

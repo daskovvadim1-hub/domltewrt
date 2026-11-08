@@ -44,6 +44,9 @@ jobs:
             [ "$PART" = "$LOOP" ] && continue
             [ -b "$PART" ] || continue
             if sudo mount -t ext4 -o ro,noload "$PART" /mnt/friendlywrt-24.10-probe 2>/dev/null; then
+              if [ -f /mnt/friendlywrt-24.10-probe/etc/opkg/distfeeds.conf ]; then
+                sudo cp /mnt/friendlywrt-24.10-probe/etc/opkg/distfeeds.conf ./distfeeds.conf
+              fi
               if [ -f /mnt/friendlywrt-24.10-probe/etc/openwrt_release ]; then
                 {
                   echo "===== $PART ====="
@@ -55,9 +58,6 @@ jobs:
                     if [ -x "/mnt/friendlywrt-24.10-probe$candidate" ]; then ls -l "/mnt/friendlywrt-24.10-probe$candidate"; fi
                   done
                   echo "opkg configuration:"
-                  if [ -f /mnt/friendlywrt-24.10-probe/etc/opkg/distfeeds.conf ]; then
-                    cp /mnt/friendlywrt-24.10-probe/etc/opkg/distfeeds.conf ./distfeeds.conf
-                  fi
                   if [ -d /mnt/friendlywrt-24.10-probe/etc/opkg ]; then
                     find /mnt/friendlywrt-24.10-probe/etc/opkg -maxdepth 2 -type f -print
                     grep -RhsE '^(src|src/gz|option)' /mnt/friendlywrt-24.10-probe/etc/opkg 2>/dev/null || true

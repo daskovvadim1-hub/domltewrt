@@ -49,3 +49,15 @@ Probe: [GitHub Actions run 42524489285](https://github.com/daskovvadim1-hub/doml
 ## Safety rule
 
 Never install generic OpenWrt kmods built for 6.6.110 or 6.12.94 into this 6.1.141 image. Never flash the device until exact board/image compatibility and a recovery path are confirmed.
+
+## Confirmed vendor BSP source path
+
+FriendlyELEC's NanoPi Zero2 wiki identifies the board as RK3528A and documents the matching Linux 6.1.y BSP path. It names:
+
+- Kernel source: https://github.com/friendlyarm/kernel-rockchip, branch `nanopi6-v6.1.y`.
+- RK3528 image/packaging scripts: https://github.com/friendlyarm/sd-fuse_rk3528, branch `kernel-6.1.y`.
+- FriendlyWrt 24 and 25 are listed as supported OS profiles in the RK3528 packaging repository.
+
+This gives us a concrete vendor-supported route for the next audit: retrieve the exact FriendlyWrt kernel configuration and build metadata from the matching FriendlyELEC tree, then compare its `kernelrelease` and `Module.symvers` with the shipped image before building any missing modem modules. The kernel source branch alone is not sufficient proof of ABI identity; the final config/build metadata must match the image.
+
+References: [NanoPi Zero2 official wiki](https://wiki.friendlyelec.com/wiki/index.php/NanoPi_Zero2), [FriendlyELEC RK3528 image builder](https://github.com/friendlyarm/sd-fuse_rk3528), [FriendlyELEC kernel BSP](https://github.com/friendlyarm/kernel-rockchip).

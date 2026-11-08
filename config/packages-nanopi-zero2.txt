@@ -1,0 +1,45 @@
+# DOM LTE WRT — целевой набор для NanoPi Zero2 / FriendlyWrt 25.12 (ARM64)
+# Это список требований к порту, НЕ готовый список для blind-install.
+# Kernel packages добавлять только после сборки/проверки ABI FriendlyWrt RK3528 kernel 6.1.y.
+
+luci
+luci-i18n-base-ru
+ca-bundle
+curl
+htop
+nano
+tcpdump
+usbutils
+picocom
+sms-tool
+comgt
+ip-full
+
+# Fibocom L850-GL / L860-GL — проверить и собрать для vendor kernel 6.1.y:
+# kmod-usb-acm
+# kmod-usb-net-cdc-ncm
+# kmod-usb-serial
+# kmod-usb-serial-option
+# kmod-usb-serial-wwan
+# luci-proto-xmm
+
+# LuCI/apps: включать только после подтверждения ARM64 feed и зависимостей:
+# luci-app-modemdata
+# modemdata
+# luci-app-modemband
+# luci-app-sms-tool-js
+# luci-theme-argon
+# luci-i18n-argon-config-ru
+# luci-app-adblock
+# luci-i18n-adblock-ru
+# luci-app-passwall2
+# luci-i18n-passwall2-ru
+# xray-core
+# sing-box
+# v2ray-geoip
+# v2ray-geosite
+
+# TProxy/TUN kernel packages: build for the exact FriendlyWrt kernel ABI:
+# kmod-nft-tproxy
+# kmod-nft-socket
+# kmod-tun

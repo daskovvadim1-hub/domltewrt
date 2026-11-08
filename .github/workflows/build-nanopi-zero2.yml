@@ -31,6 +31,7 @@ jobs:
             bc build-essential bzip2 ccache curl device-tree-compiler \
             file flex gawk gcc-multilib g++-multilib gettext git \
             libncurses-dev libssl-dev python3 python3-pip python3-setuptools \
+            python3-pyelftools \
             rsync subversion swig time unzip wget xsltproc zlib1g-dev \
             libelf-dev libgmp3-dev libmpc-dev libmpfr-dev
 
@@ -38,6 +39,20 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: nanopi-zero2
+
+      - name: Restore RK3528 compiler cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /home/runner/.cache/ccache
+          key: domlte-rk3528-ccache-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            domlte-rk3528-ccache-${{ runner.os }}-
+
+      - name: Prepare compiler cache
+        run: |
+          mkdir -p "$HOME/.cache/ccache"
+          ccache --set-config=max_size=5G
+          ccache --show-stats
 
       - name: Fetch FriendlyWrt RK3528 sources
         shell: bash
@@ -86,6 +101,16 @@ jobs:
           CONFIG_PACKAGE_kmod-nft-tproxy=y
           CONFIG_PACKAGE_kmod-nft-socket=y
           CONFIG_PACKAGE_kmod-tun=y
+          # Enable OpenWrt compiler caching across GitHub Actions runs.
+          CONFIG_DEVEL=y
+          CONFIG_CCACHE=y
+          CONFIG_CCACHE_DIR="/home/runner/.cache/ccache"
+          # This router uses Fibocom XMM NCM/serial, not the SSW dual-SIM
+          # CPE stack or ModemManager. Excluding these breaks an unrelated
+          # modemmanager/SSW dependency cycle without removing PPPoE support.
+          # CONFIG_PACKAGE_luci-app-ssw is not set
+          # CONFIG_PACKAGE_ssw is not set
+          # CONFIG_PACKAGE_modemmanager is not set
           EOF
 
       - name: Disable unrelated Realtek and USB Wi-Fi driver builds
@@ -119,6 +144,18 @@ jobs:
           set -euxo pipefail
           cd friendlywrt25-rk3528
           BUILD_THIRD_PARTY_DRIVER=0 ./build.sh rk3528.mk
+
+      - name: Report and save compiler cache
+        if: always()
+        run: |
+          ccache --show-stats || true
+
+      - name: Save RK3528 compiler cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: /home/runner/.cache/ccache
+          key: domlte-rk3528-ccache-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Install modem panels and PassWall 2 into the image rootfs
         shell: bash

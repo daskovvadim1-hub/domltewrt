@@ -108,6 +108,11 @@ jobs:
           p.write_text(s[:a] + "    # rtw88 intentionally omitted: no external Realtek Wi-Fi adapter is required.\\n\\n" + s[b:])
           PY
 
+      - name: Configure Git identity for upstream patching
+        run: |
+          git config --global user.name "DOM LTE WRT Builder"
+          git config --global user.email "dom-lte-wrt-builder@users.noreply.github.com"
+
       - name: Build FriendlyWrt for NanoPi Zero2
         shell: bash
         run: |

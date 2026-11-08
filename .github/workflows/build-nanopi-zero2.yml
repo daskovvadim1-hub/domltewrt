@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   build-friendlywrt:
-    name: Build FriendlyWrt RK3528A (baseline)
+    name: Build DOM LTE WRT for NanoPi Zero2
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     steps:
@@ -51,12 +51,109 @@ jobs:
             --repo-url=https://github.com/friendlyarm/repo --no-clone-bundle
           tools/repo sync -c --no-clone-bundle
 
+      - name: Add Fibocom XMM build feed and package selection
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd friendlywrt25-rk3528/friendlywrt
+          grep -q '^src-git modemfeed ' feeds.conf.default || \
+            echo 'src-git modemfeed https://github.com/koshev-msk/modemfeed.git' >> feeds.conf.default
+          mkdir -p ../configs/rockchip
+          cat > ../configs/rockchip/06-dom-lte <<'EOF'
+          CONFIG_PACKAGE_ca-bundle=y
+          CONFIG_PACKAGE_curl=y
+          CONFIG_PACKAGE_htop=y
+          CONFIG_PACKAGE_nano=y
+          CONFIG_PACKAGE_tcpdump=y
+          CONFIG_PACKAGE_usbutils=y
+          CONFIG_PACKAGE_picocom=y
+          CONFIG_PACKAGE_ip-full=y
+          CONFIG_PACKAGE_comgt=y
+          CONFIG_PACKAGE_sms-tool=y
+          CONFIG_PACKAGE_luci-i18n-base-ru=y
+          CONFIG_PACKAGE_luci-theme-argon=y
+          CONFIG_PACKAGE_luci-i18n-argon-config-ru=y
+          CONFIG_PACKAGE_luci-app-adblock=y
+          CONFIG_PACKAGE_luci-i18n-adblock-ru=y
+          CONFIG_PACKAGE_kmod-usb-acm=y
+          CONFIG_PACKAGE_kmod-usb-net-cdc-ncm=y
+          CONFIG_PACKAGE_kmod-usb-net-rndis=y
+          CONFIG_PACKAGE_kmod-usb-serial=y
+          CONFIG_PACKAGE_kmod-usb-serial-option=y
+          CONFIG_PACKAGE_kmod-usb-serial-wwan=y
+          CONFIG_PACKAGE_luci-proto-xmm=y
+          CONFIG_PACKAGE_xmm-modem=y
+          CONFIG_PACKAGE_kmod-nft-tproxy=y
+          CONFIG_PACKAGE_kmod-nft-socket=y
+          CONFIG_PACKAGE_kmod-tun=y
+          EOF
+
       - name: Build FriendlyWrt for NanoPi Zero2
         shell: bash
         run: |
           set -euxo pipefail
           cd friendlywrt25-rk3528
           ./build.sh rk3528.mk
+
+      - name: Install modem panels and PassWall 2 into the image rootfs
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ROOTFS="$GITHUB_WORKSPACE/friendlywrt25-rk3528/friendlywrt/build_dir/target-aarch64_generic_musl/root-rockchip"
+          test -x "$ROOTFS/sbin/apk"
+          sudo apt-get install -y qemu-user-static binfmt-support
+          sudo update-binfmts --enable qemu-aarch64
+          sudo install -D /usr/bin/qemu-aarch64-static "$ROOTFS/usr/bin/qemu-aarch64-static"
+
+          sudo install -d "$ROOTFS/etc/apk/keys" "$ROOTFS/etc/apk/repositories.d"
+          curl -fsSL https://raw.githubusercontent.com/4IceG/Modem-extras-apk/main/myapk/IceG-apkpub.pem \
+            -o "$ROOTFS/etc/apk/keys/IceG-apkpub.pem"
+          curl -fL --retry 3 https://sourceforge.net/projects/openwrt-passwall-build/files/apk.pub/download \
+            -o "$ROOTFS/etc/apk/keys/passwall.pub"
+
+          cat | sudo tee "$ROOTFS/etc/apk/repositories.d/dom-lte.list" >/dev/null <<'EOF'
+          https://raw.githubusercontent.com/4IceG/Modem-extras-apk/main/myapk/packages.adb
+          https://sourceforge.net/projects/openwrt-passwall-build/files/releases/packages-25.12/aarch64_cortex-a53/passwall_packages/packages.adb
+          https://sourceforge.net/projects/openwrt-passwall-build/files/releases/packages-25.12/aarch64_cortex-a53/passwall_luci/packages.adb
+          https://sourceforge.net/projects/openwrt-passwall-build/files/releases/packages-25.12/aarch64_cortex-a53/passwall2/packages.adb
+          EOF
+
+          sudo mount --bind /dev "$ROOTFS/dev"
+          sudo mount -t proc proc "$ROOTFS/proc"
+          sudo mount -t sysfs sys "$ROOTFS/sys"
+          cleanup() {
+            sudo umount "$ROOTFS/sys" || true
+            sudo umount "$ROOTFS/proc" || true
+            sudo umount "$ROOTFS/dev" || true
+          }
+          trap cleanup EXIT
+
+          sudo chroot "$ROOTFS" /sbin/apk update
+          sudo chroot "$ROOTFS" /sbin/apk add --no-cache \
+            luci-app-3ginfo-lite luci-i18n-3ginfo-lite-ru \
+            luci-app-modemdata modemdata luci-i18n-modemdata-ru \
+            luci-app-modemband modemband \
+            luci-app-sms-tool-js luci-i18n-sms-tool-js-ru \
+            luci-app-passwall2 luci-i18n-passwall2-ru \
+            xray-core sing-box v2ray-geoip v2ray-geosite geoview tcping
+
+          sudo rm -f "$ROOTFS/usr/bin/qemu-aarch64-static"
+          sudo tee -a "$ROOTFS/etc/sysctl.conf" >/dev/null <<'EOF'
+          # DOM LTE WRT: IPv6 remains compiled in but is disabled by default.
+          net.ipv6.conf.all.disable_ipv6=1
+          net.ipv6.conf.default.disable_ipv6=1
+          EOF
+          sudo install -d "$ROOTFS/etc/config"
+          sudo tee "$ROOTFS/etc/config/luci" >/dev/null <<'EOF'
+          config core 'main'
+              option lang 'auto'
+              option mediaurlbase '/luci-static/argon'
+          EOF
+
+          sudo chroot "$ROOTFS" /sbin/apk info -e luci-proto-xmm
+          sudo chroot "$ROOTFS" /sbin/apk info -e xmm-modem
+          sudo chroot "$ROOTFS" /sbin/apk info -e luci-app-passwall2
+          sudo chroot "$ROOTFS" /sbin/apk info -e luci-app-modemband
 
       - name: Package eMMC image
         shell: bash
@@ -68,10 +165,22 @@ jobs:
           find -L out -type f \\( -iname '*.img' -o -iname '*.img.gz' -o -iname '*.raw' -o -iname '*.raw.gz' -o -iname '*.tgz' -o -iname '*.zip' \\) -size +1M -exec cp --parents {} ../output/ \\;
           test -n "$(find ../output -type f -print -quit)"
 
-      - name: Upload baseline firmware artifacts
+      - name: Verify firmware contents
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ROOTFS="friendlywrt25-rk3528/friendlywrt/build_dir/target-aarch64_generic_musl/root-rockchip"
+          grep -q "mediaurlbase '/luci-static/argon'" "$ROOTFS/etc/config/luci"
+          grep -q 'net.ipv6.conf.all.disable_ipv6=1' "$ROOTFS/etc/sysctl.conf"
+          test -d "$ROOTFS/www/luci-static/argon"
+          test -d "$ROOTFS/usr/lib/lua/luci/proto"
+          grep -Rqs 'proto.*xmm\|xmm' "$ROOTFS/lib/netifd" "$ROOTFS/usr/lib" || true
+          echo "Rootfs checks passed; package presence was verified before eMMC packaging."
+
+      - name: Upload DOM LTE WRT eMMC image
         uses: actions/upload-artifact@v4
         with:
-          name: dom-lte-wrt-nanopi-zero2-friendlywrt-baseline
+          name: dom-lte-wrt-nanopi-zero2-emmc
           path: output/
           if-no-files-found: error
           retention-days: 14

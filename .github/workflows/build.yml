@@ -3,6 +3,8 @@ name: Build DOM LTE WRT
 on:
   workflow_dispatch:
   push:
+    branches-ignore:
+      - "dom-lte-minimal"
     paths:
       - "config/**"
       - "files/**"

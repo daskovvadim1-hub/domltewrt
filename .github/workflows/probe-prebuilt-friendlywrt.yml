@@ -122,10 +122,12 @@ jobs:
 
           sudo install -m 0755 /usr/bin/qemu-aarch64-static "$ROOT/usr/bin/qemu-aarch64-static"
           for dir in dev proc sys; do sudo mount --bind "/$dir" "$ROOT/$dir"; done
-          # QEMU's wget runs inside chroot; provide host DNS configuration.
-          sudo mount --bind /etc/resolv.conf "$ROOT/etc/resolv.conf"
+          # The image's resolv.conf is a dangling symlink in this offline rootfs.
+          # Replace it in the disposable mounted copy with the runner's resolver file.
+          sudo rm -f "$ROOT/etc/resolv.conf"
+          sudo install -m 0644 /etc/resolv.conf "$ROOT/etc/resolv.conf"
           cleanup_chroot() {
-            sudo umount "$ROOT/etc/resolv.conf" || true
+            sudo rm -f "$ROOT/etc/resolv.conf" || true
             for dir in sys proc dev; do sudo umount "$ROOT/$dir" || true; done
             sudo rm -f "$ROOT/usr/bin/qemu-aarch64-static" || true
           }

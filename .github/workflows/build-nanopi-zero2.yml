@@ -143,7 +143,36 @@ jobs:
         run: |
           set -euxo pipefail
           cd friendlywrt25-rk3528
-          BUILD_THIRD_PARTY_DRIVER=0 ./build.sh rk3528.mk
+          if [ -f friendlywrt/.config ]; then
+            echo "=== Host-tool and initramfs compression selections ==="
+            grep -E '^(CONFIG_BUILD_ALL_HOST_TOOLS|CONFIG_TARGET_INITRAMFS_COMPRESSION_)' friendlywrt/.config || true
+          fi
+          if BUILD_THIRD_PARTY_DRIVER=0 ./build.sh rk3528.mk; then
+            echo "FriendlyWrt build completed."
+          else
+            build_rc=$?
+            echo "Full build failed (exit $build_rc); collecting focused verbose liblzo diagnostics."
+            set +e
+            make -C friendlywrt tools/liblzo/compile V=s -j1 2>&1 | tee "$GITHUB_WORKSPACE/liblzo-diagnostic.log"
+            diagnostic_rc=${PIPESTATUS[0]}
+            set -e
+            {
+              echo "### FriendlyWrt build failed"
+              echo "- Full build exit code: $build_rc"
+              echo "- Focused liblzo diagnostic exit code: $diagnostic_rc"
+              echo "- See the `liblzo-diagnostic` artifact for compiler output."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$build_rc"
+          fi
+
+      - name: Upload focused liblzo diagnostic
+        if: always() && hashFiles('liblzo-diagnostic.log') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: liblzo-diagnostic
+          path: friendlywrt25-rk3528/liblzo-diagnostic.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Report and save compiler cache
         if: always()

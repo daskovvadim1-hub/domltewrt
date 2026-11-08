@@ -1,9 +1,15 @@
-# DOM LTE WRT — целевой набор для NanoPi Zero2 / FriendlyWrt 25.12 (ARM64)
-# Это список требований к порту, НЕ готовый список для blind-install.
-# Kernel packages добавлять только после сборки/проверки ABI FriendlyWrt RK3528 kernel 6.1.y.
+# DOM LTE WRT — NanoPi Zero2 / FriendlyWrt 25.12 / RK3528A ARM64
+# Build-time packages selected in configs/rockchip/06-dom-lte by the workflow.
+# Kernel modules are built against FriendlyELEC's own RK3528 kernel build,
+# not copied from x86 or from a different OpenWrt kernel ABI.
 
+# Base / LuCI
 luci
 luci-i18n-base-ru
+luci-theme-argon
+luci-i18n-argon-config-ru
+luci-app-adblock
+luci-i18n-adblock-ru
 ca-bundle
 curl
 htop
@@ -11,35 +17,46 @@ nano
 tcpdump
 usbutils
 picocom
-sms-tool
 comgt
+sms-tool
 ip-full
 
-# Fibocom L850-GL / L860-GL — проверить и собрать для vendor kernel 6.1.y:
-# kmod-usb-acm
-# kmod-usb-net-cdc-ncm
-# kmod-usb-serial
-# kmod-usb-serial-option
-# kmod-usb-serial-wwan
-# luci-proto-xmm
+# Fibocom L850-GL / L860-GL: native NCM + proto xmm only.
+# Built from the modemfeed source feed and FriendlyWrt kernel.
+kmod-usb-acm
+kmod-usb-net-cdc-ncm
+kmod-usb-net-rndis
+kmod-usb-serial
+kmod-usb-serial-option
+kmod-usb-serial-wwan
+luci-proto-xmm
+xmm-modem
 
-# LuCI/apps: включать только после подтверждения ARM64 feed и зависимостей:
-# luci-app-modemdata
-# modemdata
-# luci-app-modemband
-# luci-app-sms-tool-js
-# luci-theme-argon
-# luci-i18n-argon-config-ru
-# luci-app-adblock
-# luci-i18n-adblock-ru
-# luci-app-passwall2
-# luci-i18n-passwall2-ru
-# xray-core
-# sing-box
-# v2ray-geoip
-# v2ray-geosite
+# 4IceG panels: installed from signed ARM64-compatible APK repository
+# during image assembly; no first-boot installer.
+luci-app-3ginfo-lite
+luci-i18n-3ginfo-lite-ru
+luci-app-modemdata
+modemdata
+luci-i18n-modemdata-ru
+luci-app-modemband
+modemband
+luci-app-sms-tool-js
+luci-i18n-sms-tool-js-ru
 
-# TProxy/TUN kernel packages: build for the exact FriendlyWrt kernel ABI:
-# kmod-nft-tproxy
-# kmod-nft-socket
-# kmod-tun
+# PassWall 2: signed aarch64_cortex-a53 APK repositories, installed at build time.
+luci-app-passwall2
+luci-i18n-passwall2-ru
+xray-core
+sing-box
+v2ray-geoip
+v2ray-geosite
+geoview
+tcping
+
+# TProxy / TUN kernel support: compiled for this exact FriendlyWrt kernel.
+kmod-nft-tproxy
+kmod-nft-socket
+kmod-tun
+
+# IPv6 remains in the kernel and packages; disabled by default in sysctl.conf.

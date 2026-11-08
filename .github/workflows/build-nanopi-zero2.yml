@@ -1,0 +1,71 @@
+name: Build DOM LTE WRT — NanoPi Zero2
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - nanopi-zero2
+    paths:
+      - "docs/PORT-NANOPI-ZERO2.md"
+      - "config/packages-nanopi-zero2.txt"
+      - ".github/workflows/build-nanopi-zero2.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-friendlywrt:
+    name: Build FriendlyWrt RK3528A (baseline)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /opt/ghc /usr/share/dotnet /usr/local/share/boost
+          df -h
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y             bc build-essential bzip2 ccache curl device-tree-compiler             file flex gawk gcc-multilib g++-multilib gettext git             lib ncurses-dev libssl-dev python3 python3-pip python3-setuptools             rsync subversion swig time unzip wget xsltproc zlib1g-dev             libelf-dev libgmp3-dev libmpc-dev libmpfr-dev             repo
+      - name: Checkout DOM LTE WRT overlay
+        uses: actions/checkout@v4
+        with:
+          ref: nanopi-zero2
+
+      - name: Fetch FriendlyWrt RK3528 sources
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p friendlywrt25-rk3528
+          cd friendlywrt25-rk3528
+          git clone https://github.com/friendlyarm/repo --depth 1 tools
+          tools/repo init -u https://github.com/friendlyarm/friendlywrt_manifests \
+            -b master-v25.12 -m rk3528.xml \
+            --repo-url=https://github.com/friendlyarm/repo --no-clone-bundle
+          tools/repo sync -c --no-clone-bundle
+
+      - name: Build FriendlyWrt for NanoPi Zero2
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd friendlywrt25-rk3528
+          ./build.sh rk3528.mk
+
+      - name: Package eMMC image
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd friendlywrt25-rk3528
+          ./build.sh emmc-img
+          mkdir -p ../output
+          find out -type f \( -iname '*.img' -o -iname '*.img.gz' -o -iname '*.raw' -o -iname '*.raw.gz' -o -iname '*.tgz' -o -iname '*.zip' \) -size +1M -exec cp --parents {} ../output/ \;
+          test -n "$(find ../output -type f -print -quit)"
+
+      - name: Upload baseline firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dom-lte-wrt-nanopi-zero2-friendlywrt-baseline
+          path: output/
+          if-no-files-found: error
+          retention-days: 14

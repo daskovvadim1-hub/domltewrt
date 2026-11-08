@@ -88,12 +88,32 @@ jobs:
           CONFIG_PACKAGE_kmod-tun=y
           EOF
 
+      - name: Disable unrelated Realtek and USB Wi-Fi driver builds
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd friendlywrt25-rk3528
+          SD_FUSE_BUILD_KERNEL="$(find . -path '*/scripts/sd-fuse/build-kernel.sh' -print -quit)"
+          test -n "$SD_FUSE_BUILD_KERNEL"
+          python3 - "$SD_FUSE_BUILD_KERNEL" <<'PY'
+          import pathlib, sys
+          p = pathlib.Path(sys.argv[1])
+          s = p.read_text()
+          start = "    # build rtw_8822ce wifi driver"
+          end = "    # build usb wifi driver"
+          if s.count(start) != 1 or s.count(end) != 1:
+              raise SystemExit("Could not identify the exact upstream rtw88 block; refusing to patch")
+          a = s.index(start)
+          b = s.index(end, a)
+          p.write_text(s[:a] + "    # rtw88 intentionally omitted: no external Realtek Wi-Fi adapter is required.\\n\\n" + s[b:])
+          PY
+
       - name: Build FriendlyWrt for NanoPi Zero2
         shell: bash
         run: |
           set -euxo pipefail
           cd friendlywrt25-rk3528
-          ./build.sh rk3528.mk
+          BUILD_THIRD_PARTY_DRIVER=0 ./build.sh rk3528.mk
 
       - name: Install modem panels and PassWall 2 into the image rootfs
         shell: bash

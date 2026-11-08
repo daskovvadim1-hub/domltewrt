@@ -77,7 +77,8 @@ jobs:
                   fi
                 done
                 echo "-- apk files --"
-                find /mnt/friendlywrt-probe -maxdepth 5 -iname '*apk*' -print 2>/dev/null | sed -n '1,80p'
+                find /mnt/friendlywrt-probe -maxdepth 5 -iname '*apk*' -print 2>/dev/null > /tmp/friendlywrt-apk-files.txt || true
+                sed -n '1,80p' /tmp/friendlywrt-apk-files.txt
                 echo "-- module dirs --"
                 find /mnt/friendlywrt-probe/lib/modules -mindepth 1 -maxdepth 1 -type d -printf '%f\\n' 2>/dev/null || true
                 echo

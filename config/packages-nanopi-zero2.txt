@@ -60,3 +60,4 @@ kmod-nft-socket
 kmod-tun
 
 # IPv6 remains in the kernel and packages; disabled by default in sysctl.conf.
+# Wi-Fi scope: NanoPi Zero2 uses its onboard Ethernet for routing; omit unrelated Realtek rtw88 and USB Wi-Fi adapter modules.

@@ -50,16 +50,62 @@ jobs:
                   cat /mnt/friendlywrt-24.10-probe/etc/openwrt_release
                   echo "module directories:"
                   find /mnt/friendlywrt-24.10-probe/lib/modules -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null || true
-                  echo "APK binary:"
-                  for candidate in /sbin/apk /usr/bin/apk /bin/apk /usr/sbin/apk; do
+                  echo "Package manager binaries:"
+                  for candidate in /sbin/apk /usr/bin/apk /bin/apk /usr/sbin/apk /bin/opkg /sbin/opkg /usr/bin/opkg /usr/sbin/opkg; do
                     if [ -x "/mnt/friendlywrt-24.10-probe$candidate" ]; then ls -l "/mnt/friendlywrt-24.10-probe$candidate"; fi
                   done
+                  echo "opkg configuration:"
+                  if [ -d /mnt/friendlywrt-24.10-probe/etc/opkg ]; then
+                    find /mnt/friendlywrt-24.10-probe/etc/opkg -maxdepth 2 -type f -print
+                    grep -RhsE '^(src|src/gz|option)' /mnt/friendlywrt-24.10-probe/etc/opkg 2>/dev/null || true
+                  else
+                    echo "NO /etc/opkg"
+                  fi
+                  echo "apk configuration:"
+                  if [ -d /mnt/friendlywrt-24.10-probe/etc/apk ]; then
+                    grep -RhsE '^(https?://|file://)' /mnt/friendlywrt-24.10-probe/etc/apk 2>/dev/null || true
+                  else
+                    echo "NO /etc/apk"
+                  fi
+                  echo "kernel module files:"
+                  find /mnt/friendlywrt-24.10-probe/lib/modules -maxdepth 3 -type f 2>/dev/null | head -40 || true
                 } | tee -a rootfs-slots.txt
               fi
               sudo umount /mnt/friendlywrt-24.10-probe
             fi
           done < <(sudo lsblk -lnpo NAME "$LOOP")
           cat rootfs-slots.txt >> "$GITHUB_STEP_SUMMARY"
+          # Probe configured opkg feeds for exact USB modem modules and report
+          # package kernel dependencies instead of assuming that package names match.
+          : > opkg-feed-probe.txt
+          ROOT=/mnt/friendlywrt-24.10-probe
+          if [ -f "$ROOT/etc/opkg/distfeeds.conf" ]; then
+            while read -r KIND NAME URL REST; do
+              case "$KIND" in src|src/gz) ;; *) continue ;; esac
+              [ -n "$URL" ] || continue
+              BASE="${URL%/}"
+              echo "===== $NAME $BASE =====" | tee -a opkg-feed-probe.txt
+              for INDEX in Packages.gz Packages; do
+                TMP="feed-${NAME}-${INDEX//./_}"
+                if curl -fLsS --max-time 30 "$BASE/$INDEX" -o "$TMP"; then
+                  if [[ "$INDEX" == *.gz ]]; then
+                    gzip -dc "$TMP" >> "feed-${NAME}.txt"
+                  else
+                    cat "$TMP" >> "feed-${NAME}.txt"
+                  fi
+                  break
+                fi
+              done
+              if [ -f "feed-${NAME}.txt" ]; then
+                awk 'BEGIN{RS="";FS="\\n"} /Package: (kmod-usb-acm|kmod-usb-net-cdc-ncm|kmod-usb-net-rndis|kmod-usb-serial|kmod-usb-serial-option|kmod-usb-serial-wwan|kmod-usb-net-cdc-ether)/ {print $0 "\\n"}' "feed-${NAME}.txt" | tee -a opkg-feed-probe.txt
+              else
+                echo "INDEX_UNAVAILABLE" | tee -a opkg-feed-probe.txt
+              fi
+            done < "$ROOT/etc/opkg/distfeeds.conf"
+          else
+            echo "NO_DISTFEEDS_CONF" | tee -a opkg-feed-probe.txt
+          fi
+          cat opkg-feed-probe.txt >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload 24.10 compatibility report
         if: always()
@@ -70,5 +116,7 @@ jobs:
             image-sha256.txt
             image-partitions.txt
             rootfs-slots.txt
+            opkg-feed-probe.txt
+            feed-*.txt
           if-no-files-found: ignore
           retention-days: 7

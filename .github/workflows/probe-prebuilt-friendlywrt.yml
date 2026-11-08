@@ -54,6 +54,30 @@ jobs:
           sudo udevadm settle
           lsblk -f "$LOOP" | tee image-filesystems.txt
 
+          # Inspect every ext4 partition before selecting the first APK-capable rootfs.
+          # The image has multiple rootfs slots; do not assume they share a kernel ABI.
+          : > all-rootfs-slots.txt
+          while read -r SLOT; do
+            [ "$SLOT" = "$LOOP" ] && continue
+            [ -b "$SLOT" ] || continue
+            SLOT_TYPE="$(sudo blkid -s TYPE -o value "$SLOT" 2>/dev/null || true)"
+            [ "$SLOT_TYPE" = "ext4" ] || continue
+            if sudo mount -o ro "$SLOT" /mnt/friendlywrt-probe 2>/dev/null; then
+              if [ -f /mnt/friendlywrt-probe/etc/openwrt_release ]; then
+                {
+                  echo "===== $SLOT ====="
+                  cat /mnt/friendlywrt-probe/etc/openwrt_release
+                  echo "module directories:"
+                  find /mnt/friendlywrt-probe/lib/modules -mindepth 1 -maxdepth 1 -type d -printf '%f\\n' 2>/dev/null || true
+                  echo "kernel image candidates:"
+                  find /mnt/friendlywrt-probe/boot -maxdepth 2 -type f \\( -name 'Image*' -o -name 'vmlinuz*' -o -name '*.dtb' \\) -printf '%p\\n' 2>/dev/null | sed -n '1,30p' || true
+                  echo
+                } | tee -a all-rootfs-slots.txt
+              fi
+              sudo umount /mnt/friendlywrt-probe
+            fi
+          done < <(sudo lsblk -lnpo NAME "$LOOP")
+
           ROOT=""
           APK_BIN=""
           : > rootfs-layout.txt
@@ -163,5 +187,6 @@ jobs:
             package-availability.txt
             probe-result.txt
             rootfs-layout.txt
+            all-rootfs-slots.txt
           if-no-files-found: ignore
           retention-days: 7

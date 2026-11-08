@@ -1,0 +1,131 @@
+name: Probe prebuilt FriendlyWrt for NanoPi Zero2
+
+on:
+  push:
+    branches:
+      - prebuilt-friendlywrt
+    paths:
+      - .github/workflows/probe-prebuilt-friendlywrt.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dom-lte-prebuilt-friendlywrt-probe
+  cancel-in-progress: false
+
+jobs:
+  inspect-base-image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Install image inspection tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static binfmt-support e2fsprogs fdisk gzip
+
+      - name: Download and verify official FriendlyWrt base image
+        shell: bash
+        run: |
+          set -euxo pipefail
+          URL="https://github.com/friendlyarm/Actions-FriendlyWrt/releases/download/FriendlyWrt-2026-10-13/R28S-Zero2-NEO3Plus-Series-FriendlyWrt-25.12.img.gz"
+          EXPECTED="0724d870ff5750d99093d535f8386ea24b22bc5567e9ef7c17ad034bbb829cac"
+          curl -fL --retry 3 "$URL" -o friendlywrt-base.img.gz
+          echo "$EXPECTED  friendlywrt-base.img.gz" | sha256sum -c -
+          gzip -t friendlywrt-base.img.gz
+          gzip -dc friendlywrt-base.img.gz > friendlywrt-base.img
+          sudo fdisk -l friendlywrt-base.img | tee image-partitions.txt
+
+      - name: Inspect root filesystem and package compatibility
+        shell: bash
+        run: |
+          set -euxo pipefail
+          sudo update-binfmts --enable qemu-aarch64 || true
+          LOOP="$(sudo losetup --find --show --partscan "$PWD/friendlywrt-base.img")"
+          MOUNTED=""
+          cleanup() {
+            if [ -n "$MOUNTED" ]; then
+              sudo umount "$MOUNTED" || true
+            fi
+            sudo losetup -d "$LOOP" || true
+          }
+          trap cleanup EXIT
+          sudo udevadm settle
+          lsblk -f "$LOOP" | tee image-filesystems.txt
+
+          ROOT=""
+          while read -r PART; do
+            [ "$PART" = "$LOOP" ] && continue
+            [ -b "$PART" ] || continue
+            TYPE="$(sudo blkid -s TYPE -o value "$PART" 2>/dev/null || true)"
+            case "$TYPE" in
+              ext4|squashfs)
+                sudo mkdir -p /mnt/friendlywrt-probe
+                if sudo mount "$PART" /mnt/friendlywrt-probe 2>/dev/null; then
+                  if [ -f /mnt/friendlywrt-probe/etc/openwrt_release ] && [ -d /mnt/friendlywrt-probe/etc/apk ]; then
+                    ROOT="/mnt/friendlywrt-probe"
+                    MOUNTED="$ROOT"
+                    break
+                  fi
+                  sudo umount /mnt/friendlywrt-probe
+                fi
+                ;;
+            esac
+          done < <(sudo lsblk -lnpo NAME "$LOOP")
+
+          if [ -z "$ROOT" ]; then
+            echo "Could not locate a FriendlyWrt root filesystem with /etc/apk." >&2
+            exit 1
+          fi
+
+          echo "## Base image" >> "$GITHUB_STEP_SUMMARY"
+          cat "$ROOT/etc/openwrt_release" >> "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          echo "### Kernel module directories" >> "$GITHUB_STEP_SUMMARY"
+          find "$ROOT/lib/modules" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | tee kernel-module-versions.txt >> "$GITHUB_STEP_SUMMARY" || true
+          echo "### APK architecture and feeds" >> "$GITHUB_STEP_SUMMARY"
+          cat "$ROOT/etc/apk/arch" 2>/dev/null | tee apk-architecture.txt >> "$GITHUB_STEP_SUMMARY" || true
+          find "$ROOT/etc/apk/repositories.d" -maxdepth 1 -type f -print -exec cat {} \; 2>/dev/null | tee apk-repositories.txt >> "$GITHUB_STEP_SUMMARY" || true
+
+          if [ "$(findmnt -n -o FSTYPE "$ROOT")" != "ext4" ]; then
+            echo "Root filesystem is not writable ext4; package query requires a separate writable-root strategy." | tee probe-result.txt
+            cat probe-result.txt >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          sudo install -m 0755 /usr/bin/qemu-aarch64-static "$ROOT/usr/bin/qemu-aarch64-static"
+          for dir in dev proc sys; do sudo mount --bind "/$dir" "$ROOT/$dir"; done
+          cleanup_chroot() {
+            for dir in sys proc dev; do sudo umount "$ROOT/$dir" || true; done
+            sudo rm -f "$ROOT/usr/bin/qemu-aarch64-static" || true
+          }
+          trap 'cleanup_chroot; cleanup' EXIT
+
+          sudo chroot "$ROOT" /sbin/apk --cache-dir /tmp/dom-lte-apk-cache update
+          PACKAGES="ca-bundle curl htop nano tcpdump usbutils picocom ip-full comgt sms-tool luci-i18n-base-ru luci-theme-argon luci-i18n-argon-config-ru luci-app-adblock luci-i18n-adblock-ru kmod-usb-acm kmod-usb-net-cdc-ncm kmod-usb-net-rndis kmod-usb-serial kmod-usb-serial-option kmod-usb-serial-wwan kmod-nft-tproxy kmod-nft-socket kmod-tun mwan3 luci-app-mwan3"
+          : > package-availability.txt
+          for PKG in $PACKAGES; do
+            if sudo chroot "$ROOT" /sbin/apk --cache-dir /tmp/dom-lte-apk-cache search -x "$PKG" | grep -q .; then
+              echo "AVAILABLE $PKG" | tee -a package-availability.txt
+            else
+              echo "MISSING   $PKG" | tee -a package-availability.txt
+            fi
+          done
+          cat package-availability.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload compatibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: friendlywrt-prebuilt-compatibility-report
+          path: |
+            image-partitions.txt
+            image-filesystems.txt
+            kernel-module-versions.txt
+            apk-architecture.txt
+            apk-repositories.txt
+            package-availability.txt
+            probe-result.txt
+          if-no-files-found: ignore
+          retention-days: 7

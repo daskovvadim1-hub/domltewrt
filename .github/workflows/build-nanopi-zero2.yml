@@ -58,7 +58,7 @@ jobs:
           cd friendlywrt25-rk3528
           ./build.sh emmc-img
           mkdir -p ../output
-          find out -type f \( -iname '*.img' -o -iname '*.img.gz' -o -iname '*.raw' -o -iname '*.raw.gz' -o -iname '*.tgz' -o -iname '*.zip' \) -size +1M -exec cp --parents {} ../output/ \;
+          find -L out -type f \( -iname '*.img' -o -iname '*.img.gz' -o -iname '*.raw' -o -iname '*.raw.gz' -o -iname '*.tgz' -o -iname '*.zip' \) -size +1M -exec cp --parents {} ../output/ \;
           test -n "$(find ../output -type f -print -quit)"
 
       - name: Upload baseline firmware artifacts

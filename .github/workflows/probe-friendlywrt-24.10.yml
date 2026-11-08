@@ -55,6 +55,9 @@ jobs:
                     if [ -x "/mnt/friendlywrt-24.10-probe$candidate" ]; then ls -l "/mnt/friendlywrt-24.10-probe$candidate"; fi
                   done
                   echo "opkg configuration:"
+                  if [ -f /mnt/friendlywrt-24.10-probe/etc/opkg/distfeeds.conf ]; then
+                    cp /mnt/friendlywrt-24.10-probe/etc/opkg/distfeeds.conf ./distfeeds.conf
+                  fi
                   if [ -d /mnt/friendlywrt-24.10-probe/etc/opkg ]; then
                     find /mnt/friendlywrt-24.10-probe/etc/opkg -maxdepth 2 -type f -print
                     grep -RhsE '^(src|src/gz|option)' /mnt/friendlywrt-24.10-probe/etc/opkg 2>/dev/null || true
@@ -78,8 +81,7 @@ jobs:
           # Probe configured opkg feeds for exact USB modem modules and report
           # package kernel dependencies instead of assuming that package names match.
           : > opkg-feed-probe.txt
-          ROOT=/mnt/friendlywrt-24.10-probe
-          if [ -f "$ROOT/etc/opkg/distfeeds.conf" ]; then
+          if [ -f distfeeds.conf ]; then
             while read -r KIND NAME URL REST; do
               case "$KIND" in src|src/gz) ;; *) continue ;; esac
               [ -n "$URL" ] || continue
@@ -101,7 +103,7 @@ jobs:
               else
                 echo "INDEX_UNAVAILABLE" | tee -a opkg-feed-probe.txt
               fi
-            done < "$ROOT/etc/opkg/distfeeds.conf"
+            done < distfeeds.conf
           else
             echo "NO_DISTFEEDS_CONF" | tee -a opkg-feed-probe.txt
           fi

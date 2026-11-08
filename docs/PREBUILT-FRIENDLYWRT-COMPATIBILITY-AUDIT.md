@@ -61,3 +61,21 @@ FriendlyELEC's NanoPi Zero2 wiki identifies the board as RK3528A and documents t
 This gives us a concrete vendor-supported route for the next audit: retrieve the exact FriendlyWrt kernel configuration and build metadata from the matching FriendlyELEC tree, then compare its `kernelrelease` and `Module.symvers` with the shipped image before building any missing modem modules. The kernel source branch alone is not sufficient proof of ABI identity; the final config/build metadata must match the image.
 
 References: [NanoPi Zero2 official wiki](https://wiki.friendlyelec.com/wiki/index.php/NanoPi_Zero2), [FriendlyELEC RK3528 image builder](https://github.com/friendlyarm/sd-fuse_rk3528), [FriendlyELEC kernel BSP](https://github.com/friendlyarm/kernel-rockchip).
+
+## Important refinement: drivers built into the vendor kernel
+
+A scan for `.ko` files alone does not prove a driver is absent. The FriendlyELEC BSP source branch `nanopi6-v6.1.y` contains `arch/arm64/configs/nanopi5_linux_defconfig`, whose USB settings include:
+
+- `CONFIG_USB_ACM=y`
+- `CONFIG_USB_SERIAL=y`
+- `CONFIG_USB_SERIAL_OPTION=y`
+- `CONFIG_USB_USBNET=y`
+- `CONFIG_USB_NET_RNDIS_HOST=y`
+- `CONFIG_USB_NET_CDC_NCM=m`
+- `CONFIG_USB_NET_CDC_MBIM=m`
+
+The FriendlyWrt config fragment `arch/arm64/configs/friendlywrt.config` does not override those USB symbols. Thus the lack of separate `.ko` files for ACM/serial-option/usbnet/RNDIS in the image scan may be expected because these drivers are built into the kernel. This materially improves the initial compatibility outlook for the Fibocom serial/control path. It is still a source-config indication, not runtime proof: we must inspect the exact image's effective kernel config (if exposed) and test USB enumeration with the actual modem.
+
+The same base defconfig enables `CONFIG_NFT_SOCKET=m`, `CONFIG_NFT_TPROXY=m`, and `CONFIG_TUN=m`, consistent with the modules found in the 24.10 image.
+
+Source files: [FriendlyELEC kernel defconfig](https://github.com/friendlyarm/kernel-rockchip/blob/nanopi6-v6.1.y/arch/arm64/configs/nanopi5_linux_defconfig), [FriendlyWrt config fragment](https://github.com/friendlyarm/kernel-rockchip/blob/nanopi6-v6.1.y/arch/arm64/configs/friendlywrt.config).

@@ -43,18 +43,16 @@ jobs:
           while read -r PART; do
             [ "$PART" = "$LOOP" ] && continue
             [ -b "$PART" ] || continue
-            TYPE="$(sudo blkid -s TYPE -o value "$PART" 2>/dev/null || true)"
-            [ "$TYPE" = ext4 ] || continue
-            if sudo mount -o ro "$PART" /mnt/friendlywrt-24.10-probe 2>/dev/null; then
+            if sudo mount -t ext4 -o ro,noload "$PART" /mnt/friendlywrt-24.10-probe 2>/dev/null; then
               if [ -f /mnt/friendlywrt-24.10-probe/etc/openwrt_release ]; then
                 {
                   echo "===== $PART ====="
                   cat /mnt/friendlywrt-24.10-probe/etc/openwrt_release
                   echo "module directories:"
-                  find /mnt/friendlywrt-24.10-probe/lib/modules -mindepth 1 -maxdepth 1 -type d -printf '%f\\n' 2>/dev/null || true
+                  find /mnt/friendlywrt-24.10-probe/lib/modules -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null || true
                   echo "APK binary:"
                   for candidate in /sbin/apk /usr/bin/apk /bin/apk /usr/sbin/apk; do
-                    [ -x "/mnt/friendlywrt-24.10-probe$candidate" ] && ls -l "/mnt/friendlywrt-24.10-probe$candidate"
+                    if [ -x "/mnt/friendlywrt-24.10-probe$candidate" ]; then ls -l "/mnt/friendlywrt-24.10-probe$candidate"; fi
                   done
                 } | tee -a rootfs-slots.txt
               fi

@@ -1,0 +1,76 @@
+name: Probe FriendlyWrt 24.10 base image
+
+on:
+  push:
+    branches:
+      - prebuilt-friendlywrt
+    paths:
+      - .github/workflows/probe-friendlywrt-24.10.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Install image inspection tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y e2fsprogs fdisk gzip
+
+      - name: Download and inspect official FriendlyWrt 24.10 image
+        shell: bash
+        run: |
+          set -euxo pipefail
+          URL="https://github.com/friendlyarm/Actions-FriendlyWrt/releases/download/FriendlyWrt-2026-10-13/R28S-Zero2-NEO3Plus-Series-FriendlyWrt-24.10.img.gz"
+          curl -fL --retry 3 "$URL" -o friendlywrt-24.10.img.gz
+          gzip -t friendlywrt-24.10.img.gz
+          sha256sum friendlywrt-24.10.img.gz | tee image-sha256.txt
+          gzip -dc friendlywrt-24.10.img.gz > friendlywrt-24.10.img
+          sudo fdisk -l friendlywrt-24.10.img | tee image-partitions.txt
+          LOOP="$(sudo losetup --find --show --partscan "$PWD/friendlywrt-24.10.img")"
+          cleanup() {
+            sudo umount /mnt/friendlywrt-24.10-probe 2>/dev/null || true
+            sudo losetup -d "$LOOP" || true
+          }
+          trap cleanup EXIT
+          sudo udevadm settle
+          sudo mkdir -p /mnt/friendlywrt-24.10-probe
+          : > rootfs-slots.txt
+          while read -r PART; do
+            [ "$PART" = "$LOOP" ] && continue
+            [ -b "$PART" ] || continue
+            TYPE="$(sudo blkid -s TYPE -o value "$PART" 2>/dev/null || true)"
+            [ "$TYPE" = ext4 ] || continue
+            if sudo mount -o ro "$PART" /mnt/friendlywrt-24.10-probe 2>/dev/null; then
+              if [ -f /mnt/friendlywrt-24.10-probe/etc/openwrt_release ]; then
+                {
+                  echo "===== $PART ====="
+                  cat /mnt/friendlywrt-24.10-probe/etc/openwrt_release
+                  echo "module directories:"
+                  find /mnt/friendlywrt-24.10-probe/lib/modules -mindepth 1 -maxdepth 1 -type d -printf '%f\\n' 2>/dev/null || true
+                  echo "APK binary:"
+                  for candidate in /sbin/apk /usr/bin/apk /bin/apk /usr/sbin/apk; do
+                    [ -x "/mnt/friendlywrt-24.10-probe$candidate" ] && ls -l "/mnt/friendlywrt-24.10-probe$candidate"
+                  done
+                } | tee -a rootfs-slots.txt
+              fi
+              sudo umount /mnt/friendlywrt-24.10-probe
+            fi
+          done < <(sudo lsblk -lnpo NAME "$LOOP")
+          cat rootfs-slots.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload 24.10 compatibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: friendlywrt-24.10-compatibility-report
+          path: |
+            image-sha256.txt
+            image-partitions.txt
+            rootfs-slots.txt
+          if-no-files-found: ignore
+          retention-days: 7

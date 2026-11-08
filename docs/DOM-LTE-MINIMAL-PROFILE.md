@@ -47,4 +47,4 @@ These are investigation targets, not approved blanket disables:
 
 ## Current baseline
 
-The active `nanopi-zero2` build run #11 is intentionally left untouched. This branch is based on the same source commit and is not wired to the active `nanopi-zero2` push trigger.
+The active `nanopi-zero2` build run #11 is intentionally left untouched. This branch is not wired to the board-specific `build-nanopi-zero2.yml` trigger. The generic `.github/workflows/build.yml` previously did run on pushes to this branch and started an unrelated x86/Legacy BIOS ImageBuilder run (#50). Its push trigger now explicitly ignores `dom-lte-minimal`; the already-running #50 job is unaffected by that change. No kernel or package-pruning changes have been applied in this profile yet.

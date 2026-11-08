@@ -61,15 +61,13 @@ jobs:
           while read -r SLOT; do
             [ "$SLOT" = "$LOOP" ] && continue
             [ -b "$SLOT" ] || continue
-            SLOT_TYPE="$(sudo blkid -s TYPE -o value "$SLOT" 2>/dev/null || true)"
-            [ "$SLOT_TYPE" = "ext4" ] || continue
-            if sudo mount -o ro "$SLOT" /mnt/friendlywrt-probe 2>/dev/null; then
+            if sudo mount -t ext4 -o ro,noload "$SLOT" /mnt/friendlywrt-probe 2>/dev/null; then
               if [ -f /mnt/friendlywrt-probe/etc/openwrt_release ]; then
                 {
                   echo "===== $SLOT ====="
                   cat /mnt/friendlywrt-probe/etc/openwrt_release
                   echo "module directories:"
-                  find /mnt/friendlywrt-probe/lib/modules -mindepth 1 -maxdepth 1 -type d -printf '%f\\n' 2>/dev/null || true
+                  find /mnt/friendlywrt-probe/lib/modules -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null || true
                   echo "kernel image candidates:"
                   find /mnt/friendlywrt-probe/boot -maxdepth 2 -type f \( -name 'Image*' -o -name 'vmlinuz*' -o -name '*.dtb' \) -printf '%p\\n' 2>/dev/null | sed -n '1,30p' || true
                   echo
@@ -85,10 +83,8 @@ jobs:
           while read -r PART; do
             [ "$PART" = "$LOOP" ] && continue
             [ -b "$PART" ] || continue
-            TYPE="$(sudo blkid -s TYPE -o value "$PART" 2>/dev/null || true)"
-            [ "$TYPE" = "ext4" ] || continue
             sudo mkdir -p /mnt/friendlywrt-probe
-            if ! sudo mount "$PART" /mnt/friendlywrt-probe 2>/dev/null; then
+            if ! sudo mount -t ext4 "$PART" /mnt/friendlywrt-probe 2>/dev/null; then
               continue
             fi
             if [ -f /mnt/friendlywrt-probe/etc/openwrt_release ]; then
@@ -105,7 +101,7 @@ jobs:
                 find /mnt/friendlywrt-probe -maxdepth 5 -iname '*apk*' -print 2>/dev/null > /tmp/friendlywrt-apk-files.txt || true
                 sed -n '1,80p' /tmp/friendlywrt-apk-files.txt
                 echo "-- module dirs --"
-                find /mnt/friendlywrt-probe/lib/modules -mindepth 1 -maxdepth 1 -type d -printf '%f\\n' 2>/dev/null || true
+                find /mnt/friendlywrt-probe/lib/modules -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null || true
                 echo
               } | tee -a rootfs-layout.txt
               for candidate in /sbin/apk /usr/bin/apk /bin/apk /usr/sbin/apk; do

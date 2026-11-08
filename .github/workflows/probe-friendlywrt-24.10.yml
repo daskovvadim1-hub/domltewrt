@@ -70,7 +70,15 @@ jobs:
                   else
                     echo "NO /etc/apk"
                   fi
-                  echo "kernel module files:"
+                  echo "Fibocom-relevant kernel modules:"
+                  find /mnt/friendlywrt-24.10-probe/lib/modules -type f 2>/dev/null | grep -Ei '/(cdc_acm|cdc_ncm|cdc_ether|rndis_host|usbnet|usbserial|usb_wwan|option|qmi_wwan|cdc_mbim|cdc_wdm|mii|usbcore|usb_common|tun|nft_tproxy|nft_socket)\\.ko(\\.|$)' | sort || true
+                  echo "Installed relevant kmod packages:"
+                  if [ -f /mnt/friendlywrt-24.10-probe/usr/lib/opkg/status ]; then
+                    grep -E -A4 '^Package: kmod-(usb|nft|tun)' /mnt/friendlywrt-24.10-probe/usr/lib/opkg/status || true
+                  fi
+                  echo "Local package candidates:"
+                  find /mnt/friendlywrt-24.10-probe/usr/local/packages -maxdepth 1 -type f \\( -name '*kmod-usb*' -o -name '*kmod-nft*' -o -name '*kmod-tun*' -o -name 'kernel-*' \\) -printf '%f\\n' 2>/dev/null | sort || true
+                  echo "kernel module files (first 40):"
                   find /mnt/friendlywrt-24.10-probe/lib/modules -maxdepth 3 -type f 2>/dev/null | head -40 || true
                 } | tee -a rootfs-slots.txt
               fi

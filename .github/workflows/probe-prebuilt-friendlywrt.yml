@@ -128,6 +128,10 @@ jobs:
           }
           trap 'cleanup_chroot; cleanup' EXIT
 
+          # This vendor image has no initialized APK database in its rootfs.
+          # Initialize a disposable database only for repository/package probing.
+          sudo mkdir -p "$ROOT/lib/apk/db" "$ROOT/var/cache/apk" "$ROOT/tmp/dom-lte-apk-cache"
+          sudo chroot "$ROOT" "$APK_BIN" --initdb
           sudo chroot "$ROOT" "$APK_BIN" --cache-dir /tmp/dom-lte-apk-cache update
           PACKAGES="ca-bundle curl htop nano tcpdump usbutils picocom ip-full comgt sms-tool luci-i18n-base-ru luci-theme-argon luci-i18n-argon-config-ru luci-app-adblock luci-i18n-adblock-ru kmod-usb-acm kmod-usb-net-cdc-ncm kmod-usb-net-rndis kmod-usb-serial kmod-usb-serial-option kmod-usb-serial-wwan kmod-nft-tproxy kmod-nft-socket kmod-tun mwan3 luci-app-mwan3"
           : > package-availability.txt

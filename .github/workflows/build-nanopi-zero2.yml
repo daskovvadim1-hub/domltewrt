@@ -106,6 +106,11 @@ jobs:
           CONFIG_PACKAGE_kmod-nft-tproxy=y
           CONFIG_PACKAGE_kmod-nft-socket=y
           CONFIG_PACKAGE_kmod-tun=y
+          # Docker is intentionally excluded from the NanoPi firmware.
+          # CONFIG_PACKAGE_dockerd is not set
+          # CONFIG_PACKAGE_luci-app-dockerman is not set
+          # CONFIG_PACKAGE_containerd is not set
+          # CONFIG_PACKAGE_docker-compose is not set
           # Avoid an upstream recursive Kconfig selection through rpcd/LuCI.
           # CONFIG_PACKAGE_luci-app-rp-pppoe-server is not set
           # Enable OpenWrt compiler caching across GitHub Actions runs.
@@ -254,7 +259,15 @@ jobs:
           sudo chroot "$ROOTFS" /sbin/apk info -e luci-app-passwall2
           sudo chroot "$ROOTFS" /sbin/apk info -e luci-app-modemband
 
-      - name: Package eMMC image
+          # Fail the build if any Docker runtime or LuCI Docker app slipped in.
+          for package in dockerd luci-app-dockerman containerd docker-compose; do
+            if sudo chroot "$ROOTFS" /sbin/apk info -e "$package" >/dev/null 2>&1; then
+              echo "ERROR: Docker package unexpectedly present: $package" >&2
+              exit 1
+            fi
+          done
+
+      - name: Package bootable SD and eMMC images
         shell: bash
         run: |
           set -euxo pipefail

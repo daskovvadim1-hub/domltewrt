@@ -19,9 +19,11 @@ usbutils
 picocom
 comgt
 sms-tool
+luci-app-5gmodem
 ip-full
 
 # Fibocom L850-GL / L860-GL: native NCM + proto xmm only.
+# LuCI modem dashboard is built from fildunsky/luci-app-5gmodem feed.
 # Built from the modemfeed source feed and FriendlyWrt kernel.
 kmod-usb-acm
 kmod-usb-net-cdc-ncm

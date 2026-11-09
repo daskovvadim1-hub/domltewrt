@@ -70,13 +70,23 @@ jobs:
         run: |
           set -euxo pipefail
           cd friendlywrt25-rk3528/friendlywrt
-          sed -i '/^src-git modemfeed /d' feeds.conf.default
-          sed -i '/^src-git modem5g /d' feeds.conf.default
-          echo 'src-git modemfeed https://github.com/koshev-msk/modemfeed.git' >> feeds.conf.default
-          echo 'src-git modem5g https://github.com/fildunsky/luci-app-5gmodem.git' >> feeds.conf.default
-          ./scripts/feeds update modemfeed modem5g
-          ./scripts/feeds install -p modem5g luci-app-5gmodem
-          ./scripts/feeds install -p modemfeed luci-proto-xmm xmm-modem
+          # Keep only the required modem packages; do not register the entire modemfeed.
+          sed -i '/^src-git modemfeed /d; /^src-git modem5g /d' feeds.conf.default
+          mkdir -p package/dom-lte
+          git clone --filter=blob:none https://github.com/koshev-msk/modemfeed.git "$RUNNER_TEMP/modemfeed"
+          git -C "$RUNNER_TEMP/modemfeed" fetch --depth 1 origin 04761d9c5ef20c95e6eca6312f3af5b83a92b932
+          git -C "$RUNNER_TEMP/modemfeed" checkout --detach FETCH_HEAD
+          cp -a "$RUNNER_TEMP/modemfeed/packages/net/xmm-modem" package/dom-lte/
+          cp -a "$RUNNER_TEMP/modemfeed/luci/protocols/luci-proto-xmm" package/dom-lte/
+          git clone --filter=blob:none https://github.com/fildunsky/luci-app-5gmodem.git "$RUNNER_TEMP/luci-app-5gmodem"
+          git -C "$RUNNER_TEMP/luci-app-5gmodem" fetch --depth 1 origin 129d077accf0a3309ab14704d369da51b7939382
+          git -C "$RUNNER_TEMP/luci-app-5gmodem" checkout --detach FETCH_HEAD
+          cp -a "$RUNNER_TEMP/luci-app-5gmodem/luci-app-5gmodem" package/dom-lte/
+          test -s package/dom-lte/xmm-modem/Makefile
+          test -s package/dom-lte/luci-proto-xmm/Makefile
+          test -s package/dom-lte/luci-app-5gmodem/Makefile
+          # ALL_NONSHARED selects unrelated SSW/PPPoE packages and creates a Kconfig cycle.
+          sed -i '/^CONFIG_ALL_NONSHARED=y$/d' ../configs/rockchip/01-nanopi
 
           mkdir -p ../configs/rockchip
           cat > ../configs/rockchip/06-dom-lte <<'EOF'
@@ -117,10 +127,10 @@ jobs:
           CONFIG_DEVEL=y
           CONFIG_CCACHE=y
           CONFIG_CCACHE_DIR="/home/runner/.cache/ccache"
-          # This router uses Fibocom XMM NCM/serial, not the SSW dual-SIM CPE stack.
+          # Fibocom XMM uses NCM/serial; exclude the unrelated SSW dual-SIM stack.
+          # luci-app-5gmodem requires modemmanager, so keep that dependency enabled.
           # CONFIG_PACKAGE_luci-app-ssw is not set
           # CONFIG_PACKAGE_ssw is not set
-          # CONFIG_PACKAGE_modemmanager is not set
           EOF
 
       - name: Disable unrelated Realtek and USB Wi-Fi driver builds
@@ -188,6 +198,28 @@ jobs:
         run: |
           set -euxo pipefail
           cd friendlywrt25-rk3528
+          MK_SCRIPT="$GITHUB_WORKSPACE/friendlywrt25-rk3528/scripts/mk-friendlywrt.sh"
+          test -s "$MK_SCRIPT"
+          python3 - "$MK_SCRIPT" <<'PY'
+          import pathlib, re, sys
+          p = pathlib.Path(sys.argv[1])
+          s = p.read_text()
+          pattern = re.compile(
+              r"(?m)^make -j\\$\\(nproc\\)\\nRET=\\$\\?\\nif \\[ \\$RET -eq 0 \\]; then\\n\\texit 0\\nfi\\n\\nmake -j1 V=s\\nRET=\\$\\?\\nif \\[ \\$RET -eq 0 \\]; then\\n\\texit 0\\nfi\\n\\nexit 1$"
+          )
+          replacement = (
+              "if make -j2; then\\n"
+              "\\texit 0\\n"
+              "fi\\n"
+              "echo \\\"Parallel build failed; retrying serially with verbose output.\\\"\\n"
+              "make -j1 V=s"
+          )
+          updated, count = pattern.subn(replacement, s)
+          if count != 1:
+              raise SystemExit(f"Expected one upstream parallel/serial build block, found {count}; refusing to patch")
+          p.write_text(updated)
+          print("Patched upstream FriendlyWrt build: -j2 with a reachable -j1 V=s fallback")
+          PY
           if BUILD_THIRD_PARTY_DRIVER=0 ./build.sh rk3528.mk; then
             echo "FriendlyWrt build completed."
           else

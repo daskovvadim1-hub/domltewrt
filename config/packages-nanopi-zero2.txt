@@ -46,7 +46,7 @@ modemband
 luci-app-sms-tool-js
 luci-i18n-sms-tool-js-ru
 
-# PassWall 2: signed aarch64_cortex-a53 APK repositories, installed at build time.
+# PassWall 2: signed aarch64_generic APK repositories, installed at build time.
 luci-app-passwall2
 luci-i18n-passwall2-ru
 xray-core

@@ -150,7 +150,7 @@ jobs:
               raise SystemExit("Could not identify the exact upstream rtw88 block; refusing to patch")
           a = s.index(start)
           b = s.index(end, a)
-          p.write_text(s[:a] + "    # rtw88 intentionally omitted: no external Realtek Wi-Fi adapter is required.\\n\\n" + s[b:])
+          p.write_text(s[:a] + "    # rtw88 intentionally omitted: no external Realtek Wi-Fi adapter is required.\n\n" + s[b:])
           PY
 
       - name: Enforce required modules in FriendlyELEC 6.1 kernel
@@ -181,7 +181,7 @@ jobs:
               if re.search(pattern, s, flags=re.M):
                   s = re.sub(pattern, replacement, s, flags=re.M)
               else:
-                  s += f"\\n{replacement}\\n"
+                  s += f"\n{replacement}\n"
           p.write_text(s)
           print("Enforced FriendlyELEC kernel options:")
           for key, value in required.items():
@@ -204,20 +204,28 @@ jobs:
           import pathlib, re, sys
           p = pathlib.Path(sys.argv[1])
           s = p.read_text()
-          pattern = re.compile(
-              r"(?m)^make -j\\$\\(nproc\\)\\nRET=\\$\\?\\nif \\[ \\$RET -eq 0 \\]; then\\n\\texit 0\\nfi\\n\\nmake -j1 V=s\\nRET=\\$\\?\\nif \\[ \\$RET -eq 0 \\]; then\\n\\texit 0\\nfi\\n\\nexit 1$"
-          )
-          replacement = (
-              "if make -j2; then\\n"
-              "\\texit 0\\n"
-              "fi\\n"
-              "echo \\\"Parallel build failed; retrying serially with verbose output.\\\"\\n"
-              "make -j1 V=s"
-          )
-          updated, count = pattern.subn(replacement, s)
-          if count != 1:
-              raise SystemExit(f"Expected one upstream parallel/serial build block, found {count}; refusing to patch")
-          p.write_text(updated)
+          old = """make -j$(nproc)
+          RET=$?
+          if [ $RET -eq 0 ]; then
+          	exit 0
+          fi
+
+          make -j1 V=s
+          RET=$?
+          if [ $RET -eq 0 ]; then
+          	exit 0
+          fi
+
+          exit 1"""
+          new = """if make -j2; then
+          	exit 0
+          fi
+          echo "Parallel build failed; retrying serially with verbose output."
+          make -j1 V=s"""
+          if old not in s:
+              raise SystemExit("Could not find the exact upstream build fallback; refusing to patch")
+          updated = s.replace(old, new, 1)
+                    p.write_text(updated)
           print("Patched upstream FriendlyWrt build: -j2 with a reachable -j1 V=s fallback")
           PY
           if BUILD_THIRD_PARTY_DRIVER=0 ./build.sh rk3528.mk; then

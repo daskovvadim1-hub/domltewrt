@@ -73,6 +73,10 @@ jobs:
           cd friendlywrt25-rk3528/friendlywrt
           grep -q '^src-git modemfeed ' feeds.conf.default || \
             echo 'src-git modemfeed https://github.com/koshev-msk/modemfeed.git' >> feeds.conf.default
+          grep -q '^src-git modem5g ' feeds.conf.default || \
+            echo 'src-git modem5g https://github.com/fildunsky/luci-app-5gmodem.git' >> feeds.conf.default
+          ./scripts/feeds update modem5g
+          ./scripts/feeds install luci-app-5gmodem
           mkdir -p ../configs/rockchip
           cat > ../configs/rockchip/06-dom-lte <<'EOF'
           CONFIG_PACKAGE_ca-bundle=y
@@ -85,6 +89,7 @@ jobs:
           CONFIG_PACKAGE_ip-full=y
           CONFIG_PACKAGE_comgt=y
           CONFIG_PACKAGE_sms-tool=y
+          CONFIG_PACKAGE_luci-app-5gmodem=y
           CONFIG_PACKAGE_luci-i18n-base-ru=y
           CONFIG_PACKAGE_luci-theme-argon=y
           CONFIG_PACKAGE_luci-i18n-argon-config-ru=y
@@ -101,6 +106,8 @@ jobs:
           CONFIG_PACKAGE_kmod-nft-tproxy=y
           CONFIG_PACKAGE_kmod-nft-socket=y
           CONFIG_PACKAGE_kmod-tun=y
+          # Avoid an upstream recursive Kconfig selection through rpcd/LuCI.
+          # CONFIG_PACKAGE_luci-app-rp-pppoe-server is not set
           # Enable OpenWrt compiler caching across GitHub Actions runs.
           CONFIG_DEVEL=y
           CONFIG_CCACHE=y
@@ -241,6 +248,7 @@ jobs:
               option mediaurlbase '/luci-static/argon'
           EOF
 
+          sudo chroot "$ROOTFS" /sbin/apk info -e luci-app-5gmodem
           sudo chroot "$ROOTFS" /sbin/apk info -e luci-proto-xmm
           sudo chroot "$ROOTFS" /sbin/apk info -e xmm-modem
           sudo chroot "$ROOTFS" /sbin/apk info -e luci-app-passwall2
@@ -251,6 +259,9 @@ jobs:
         run: |
           set -euxo pipefail
           cd friendlywrt25-rk3528
+          # Repackage the customized rootfs into both a bootable SD image and
+          # an eMMC image that can be installed from the running SD system.
+          ./build.sh sd-img
           ./build.sh emmc-img
           mkdir -p ../output
           find -L out -type f \\( -iname '*.img' -o -iname '*.img.gz' -o -iname '*.raw' -o -iname '*.raw.gz' -o -iname '*.tgz' -o -iname '*.zip' \\) -size +1M -exec cp --parents {} ../output/ \\;
@@ -271,7 +282,7 @@ jobs:
       - name: Upload DOM LTE WRT eMMC image
         uses: actions/upload-artifact@v4
         with:
-          name: dom-lte-wrt-nanopi-zero2-emmc
+          name: dom-lte-wrt-nanopi-zero2-sd-and-emmc
           path: output/
           if-no-files-found: error
           retention-days: 14

@@ -204,12 +204,12 @@ jobs:
           import pathlib, re, sys
           p = pathlib.Path(sys.argv[1])
           s = p.read_text()
-          old = "make -j$(nproc)\\nRET=$?\\nif [ $RET -eq 0 ]; then\\n\\texit 0\\nfi\\n\\nmake -j1 V=s\\nRET=$?\\nif [ $RET -eq 0 ]; then\\n\\texit 0\\nfi\\n\\nexit 1"
-          new = "if make -j2; then\\n\\texit 0\\nfi\\necho \\"Parallel build failed; retrying serially with verbose output.\\"\\nmake -j1 V=s"
+          old = "make -j$(nproc)\nRET=$?\nif [ $RET -eq 0 ]; then\n\texit 0\nfi\n\nmake -j1 V=s\nRET=$?\nif [ $RET -eq 0 ]; then\n\texit 0\nfi\n\nexit 1"
+          new = "if make -j2; then\n\texit 0\nfi\necho \"Parallel build failed; retrying serially with verbose output.\"\nmake -j1 V=s"
           if old not in s:
               raise SystemExit("Could not find the exact upstream build fallback; refusing to patch")
           updated = s.replace(old, new, 1)
-                    p.write_text(updated)
+          p.write_text(updated)
           print("Patched upstream FriendlyWrt build: -j2 with a reachable -j1 V=s fallback")
           PY
           if BUILD_THIRD_PARTY_DRIVER=0 ./build.sh rk3528.mk; then

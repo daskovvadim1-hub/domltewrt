@@ -55,30 +55,35 @@ jobs:
                 if sudo mount -o "$OPTS" "$PART" inspect-root 2>/dev/null; then
                   if [ -f inspect-root/etc/openwrt_release ] || [ -f inspect-root/etc/apk/arch ]; then
                     FOUND=1
+                    MOUNTED=inspect-root
                     echo "rootfs_partition=$PART" | tee report/rootfs-location.txt
                     [ ! -f inspect-root/etc/openwrt_release ] || cp inspect-root/etc/openwrt_release report/openwrt_release.txt
                     [ ! -f inspect-root/etc/apk/arch ] || cp inspect-root/etc/apk/arch report/apk-arch.txt
                     [ ! -f inspect-root/etc/apk/repositories ] || cp inspect-root/etc/apk/repositories report/apk-repositories.txt
                     [ ! -f inspect-root/etc/apk/repositories.d/dom-lte.list ] || cp inspect-root/etc/apk/repositories.d/dom-lte.list report/existing-extra-repositories.txt
-                    find inspect-root/lib/modules -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort > report/kernel-module-releases.txt || true
-                    if [ -d inspect-root/lib/modules ]; then
-                      find inspect-root/lib/modules -maxdepth 2 -type f \( -name '*.ko' -o -name '*.ko.*' -o -name 'modules.dep' -o -name 'modules.alias' \) -printf '%P\n' 2>/dev/null | head -n 300 > report/kernel-module-files.txt || true
-                      ls -ld inspect-root/lib/modules inspect-root/lib/modules/* > report/kernel-module-paths.txt 2>&1 || true
+
+                    # Capture actual module directory entries, symlinks and files.
+                    if [ -e inspect-root/lib/modules ] || [ -L inspect-root/lib/modules ]; then
+                      ls -la inspect-root/lib/modules > report/kernel-module-directory.txt 2>&1 || true
+                      readlink -f inspect-root/lib/modules > report/kernel-module-directory-realpath.txt 2>&1 || true
+                      find inspect-root/lib/modules -mindepth 1 -maxdepth 2 -printf '%y %p -> %l\n' 2>/dev/null | sort > report/kernel-module-tree.txt || true
+                      find -L inspect-root/lib/modules -type f \( -name '*.ko' -o -name '*.ko.*' -o -name 'modules.dep' -o -name 'modules.alias' \) -printf '%P\n' 2>/dev/null | head -n 500 > report/kernel-module-files.txt || true
                     fi
+
                     if [ -f inspect-root/lib/apk/db/installed ]; then
                       cp inspect-root/lib/apk/db/installed report/apk-installed-db.txt
                       awk '/^P:kernel$/{p=1} p{print} p && /^$/{exit}' inspect-root/lib/apk/db/installed > report/kernel-apk-record.txt
+                      awk '/^P:kmod-/{p=1} p{print} p && /^$/{p=0}' inspect-root/lib/apk/db/installed | grep -E '^(P:|V:|D:)' > report/kmod-package-abi-summary.txt || true
                       grep -E '^P:(dockerd|luci-app-dockerman|containerd|docker-compose)$' inspect-root/lib/apk/db/installed > report/docker-packages.txt || true
                     fi
+
                     if [ -d inspect-root/etc/apk ]; then
                       find inspect-root/etc/apk -maxdepth 3 -type f -printf '%P\n' | sort > report/apk-config-files.txt
                       find inspect-root/etc/apk -maxdepth 3 -type f \( -name '*repositories*' -o -name '*.list' \) -print -exec sh -c 'echo "--- $1"; cat "$1"' _ {} \; > report/apk-repositories-content.txt 2>&1 || true
                     fi
-                    if [ -f inspect-root/usr/lib/opkg/status ]; then
-                      cp inspect-root/usr/lib/opkg/status report/opkg-status.txt
-                    fi
                     find inspect-root/etc -maxdepth 2 -type f \( -name '*release*' -o -name 'os-release' -o -path '*/apk/arch' \) -print > report/os-metadata-files.txt
                     sudo umount inspect-root
+                    MOUNTED=""
                     break
                   fi
                   sudo umount inspect-root
@@ -94,47 +99,8 @@ jobs:
             echo "### Official FriendlyWrt image inspection"
             echo "- Image: R28S-Zero2-NEO3Plus-Series-FriendlyWrt-25.12.img.gz"
             echo "- Release: FriendlyWrt-2026-10-13"
-            echo "- Image is the non-Docker variant."
-            echo "- Root filesystem was mounted read-only; no physical media was accessed."
-            echo "- APK architecture and kernel module release are attached as artifacts."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload offline inspection report
-        uses: actions/upload-artifact@v4
-        with:
-          name: friendlywrt-25.12-official-image-inspection
-          path: report/
-          if-no-files-found: error
-          retention-days: 30
- inspect-root/lib/apk/db/installed > report/docker-packages.txt || true
-                    fi
-                    if [ -d inspect-root/etc/apk ]; then
-                      find inspect-root/etc/apk -maxdepth 3 -type f -printf '%P\\n' | sort > report/apk-config-files.txt
-                      find inspect-root/etc/apk -maxdepth 3 -type f \\( -name '*repositories*' -o -name '*.list' \\) -print -exec sh -c 'echo "--- $1"; cat "$1"' _ {} \\; > report/apk-repositories-content.txt 2>&1 || true
-                    fi
-                    if [ -f inspect-root/usr/lib/opkg/status ]; then
-                      cp inspect-root/usr/lib/opkg/status report/opkg-status.txt
-                    fi
-                    find inspect-root/etc -maxdepth 2 -type f \( -name '*release*' -o -name 'os-release' -o -path '*/apk/arch' \) -print > report/os-metadata-files.txt
-                    sudo umount inspect-root
-                    break
-                  fi
-                  sudo umount inspect-root
-                fi
-                ;;
-            esac
-          done < <(sudo lsblk -lnpo NAME,FSTYPE "$LOOP" | tail -n +2)
-          if [ "$FOUND" -ne 1 ]; then
-            echo "Could not identify mounted FriendlyWrt root filesystem or APK metadata." >&2
-            exit 1
-          fi
-          {
-            echo "### Official FriendlyWrt image inspection"
-            echo "- Image: R28S-Zero2-NEO3Plus-Series-FriendlyWrt-25.12.img.gz"
-            echo "- Release: FriendlyWrt-2026-10-13"
-            echo "- Image is the non-Docker variant."
-            echo "- Root filesystem was mounted read-only; no physical media was accessed."
-            echo "- APK architecture and kernel module release are attached as artifacts."
+            echo "- Root filesystem mounted read-only; no physical media accessed."
+            echo "- Kernel APK record, module directory tree and package ABI summary attached."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload offline inspection report

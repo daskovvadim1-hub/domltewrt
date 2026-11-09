@@ -31,8 +31,7 @@ jobs:
             bc build-essential bzip2 ccache curl device-tree-compiler \
             file flex gawk gcc-multilib g++-multilib gettext git \
             libncurses-dev libssl-dev python3 python3-pip python3-setuptools \
-            python3-pyelftools \
-            rsync subversion swig time unzip wget xsltproc zlib1g-dev \
+            python3-pyelftools rsync subversion swig time unzip wget xsltproc zlib1g-dev \
             libelf-dev libgmp3-dev libmpc-dev libmpfr-dev
 
       - name: Checkout DOM LTE WRT overlay
@@ -66,20 +65,19 @@ jobs:
             --repo-url=https://github.com/friendlyarm/repo --no-clone-bundle
           tools/repo sync -c --no-clone-bundle
 
-      - name: Add Fibocom XMM build feed and package selection
+      - name: Add Fibocom XMM feeds and package selection
         shell: bash
         run: |
           set -euxo pipefail
           cd friendlywrt25-rk3528/friendlywrt
-          grep -q '^src-git modemfeed ' feeds.conf.default || \
-            echo 'src-git modemfeed https://github.com/koshev-msk/modemfeed.git' >> feeds.conf.default
-          grep -q '^src-git modemfeed ' feeds.conf.default || \
-            echo 'src-git modemfeed https://github.com/koshev-msk/modemfeed.git' >> feeds.conf.default
-          grep -q '^src-git modem5g ' feeds.conf.default || \
-            echo 'src-git modem5g https://github.com/fildunsky/luci-app-5gmodem.git' >> feeds.conf.default
+          sed -i '/^src-git modemfeed /d' feeds.conf.default
+          sed -i '/^src-git modem5g /d' feeds.conf.default
+          echo 'src-git modemfeed https://github.com/koshev-msk/modemfeed.git' >> feeds.conf.default
+          echo 'src-git modem5g https://github.com/fildunsky/luci-app-5gmodem.git' >> feeds.conf.default
           ./scripts/feeds update modemfeed modem5g
           ./scripts/feeds install -p modem5g luci-app-5gmodem
           ./scripts/feeds install -p modemfeed luci-proto-xmm xmm-modem
+
           mkdir -p ../configs/rockchip
           cat > ../configs/rockchip/06-dom-lte <<'EOF'
           CONFIG_PACKAGE_ca-bundle=y
@@ -114,15 +112,12 @@ jobs:
           # CONFIG_PACKAGE_luci-app-dockerman is not set
           # CONFIG_PACKAGE_containerd is not set
           # CONFIG_PACKAGE_docker-compose is not set
-          # Avoid an upstream recursive Kconfig selection through rpcd/LuCI.
+          # Avoid unrelated package selections.
           # CONFIG_PACKAGE_luci-app-rp-pppoe-server is not set
-          # Enable OpenWrt compiler caching across GitHub Actions runs.
           CONFIG_DEVEL=y
           CONFIG_CCACHE=y
           CONFIG_CCACHE_DIR="/home/runner/.cache/ccache"
-          # This router uses Fibocom XMM NCM/serial, not the SSW dual-SIM
-          # CPE stack or ModemManager. Excluding these breaks an unrelated
-          # modemmanager/SSW dependency cycle without removing PPPoE support.
+          # This router uses Fibocom XMM NCM/serial, not the SSW dual-SIM CPE stack.
           # CONFIG_PACKAGE_luci-app-ssw is not set
           # CONFIG_PACKAGE_ssw is not set
           # CONFIG_PACKAGE_modemmanager is not set
@@ -148,7 +143,7 @@ jobs:
           p.write_text(s[:a] + "    # rtw88 intentionally omitted: no external Realtek Wi-Fi adapter is required.\\n\\n" + s[b:])
           PY
 
-      - name: Enforce Fibocom and routing kernel modules in FriendlyELEC 6.1 kernel
+      - name: Enforce required modules in FriendlyELEC 6.1 kernel
         shell: bash
         run: |
           set -euxo pipefail
@@ -176,9 +171,9 @@ jobs:
               if re.search(pattern, s, flags=re.M):
                   s = re.sub(pattern, replacement, s, flags=re.M)
               else:
-                  s += f"\n{replacement}\n"
+                  s += f"\\n{replacement}\\n"
           p.write_text(s)
-          print("Enforced vendor-kernel module configuration:")
+          print("Enforced FriendlyELEC kernel options:")
           for key, value in required.items():
               print(f"{key}={value}")
           PY
@@ -193,10 +188,6 @@ jobs:
         run: |
           set -euxo pipefail
           cd friendlywrt25-rk3528
-          if [ -f friendlywrt/.config ]; then
-            echo "=== Host-tool and initramfs compression selections ==="
-            grep -E '^(CONFIG_BUILD_ALL_HOST_TOOLS|CONFIG_TARGET_INITRAMFS_COMPRESSION_)' friendlywrt/.config || true
-          fi
           if BUILD_THIRD_PARTY_DRIVER=0 ./build.sh rk3528.mk; then
             echo "FriendlyWrt build completed."
           else
@@ -210,7 +201,7 @@ jobs:
               echo "### FriendlyWrt build failed"
               echo "- Full build exit code: $build_rc"
               echo "- Focused liblzo diagnostic exit code: $diagnostic_rc"
-              echo "- See the `liblzo-diagnostic` artifact for compiler output."
+              echo "- See the liblzo-diagnostic artifact for compiler output."
             } >> "$GITHUB_STEP_SUMMARY"
             exit "$build_rc"
           fi
@@ -220,7 +211,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: liblzo-diagnostic
-          path: friendlywrt25-rk3528/liblzo-diagnostic.log
+          path: liblzo-diagnostic.log
           if-no-files-found: warn
           retention-days: 7
 
@@ -249,7 +240,7 @@ jobs:
           sudo install -d "$ROOTFS/etc/apk/keys" "$ROOTFS/etc/apk/repositories.d"
           curl -fsSL https://raw.githubusercontent.com/4IceG/Modem-extras-apk/main/myapk/IceG-apkpub.pem \
             -o "$ROOTFS/etc/apk/keys/IceG-apkpub.pem"
-          curl -fL --retry 3 https://sourceforge.net/projects/openwrt-passwall-build/files/apk.pub/download \
+          curl -fL --retry 3 https://downloads.sourceforge.net/project/openwrt-passwall-build/apk.pub \
             -o "$ROOTFS/etc/apk/keys/passwall.pub"
 
           cat | sudo tee "$ROOTFS/etc/apk/repositories.d/dom-lte.list" >/dev/null <<'EOF'
@@ -291,14 +282,12 @@ jobs:
               option mediaurlbase '/luci-static/argon'
           EOF
 
-          sudo chroot "$ROOTFS" /sbin/apk info -e luci-app-5gmodem
-          sudo chroot "$ROOTFS" /sbin/apk info -e luci-proto-xmm
-          sudo chroot "$ROOTFS" /sbin/apk info -e xmm-modem
-          sudo chroot "$ROOTFS" /sbin/apk info -e luci-app-passwall2
-          sudo chroot "$ROOTFS" /sbin/apk info -e luci-app-modemband
-          sudo chroot "$ROOTFS" /sbin/apk info -e luci-i18n-modemband-ru
+          for package in luci-app-5gmodem luci-proto-xmm xmm-modem luci-app-passwall2 \
+            luci-app-3ginfo-lite luci-app-modemdata luci-app-modemband \
+            luci-i18n-modemband-ru luci-app-sms-tool-js; do
+            sudo chroot "$ROOTFS" /sbin/apk info -e "$package"
+          done
 
-          # Fail the build if any Docker runtime or LuCI Docker app slipped in.
           for package in dockerd luci-app-dockerman containerd docker-compose; do
             if sudo chroot "$ROOTFS" /sbin/apk info -e "$package" >/dev/null 2>&1; then
               echo "ERROR: Docker package unexpectedly present: $package" >&2
@@ -311,8 +300,6 @@ jobs:
         run: |
           set -euxo pipefail
           cd friendlywrt25-rk3528
-          # Repackage the customized rootfs into both a bootable SD image and
-          # an eMMC image that can be installed from the running SD system.
           ./build.sh sd-img
           ./build.sh emmc-img
           mkdir -p ../output
@@ -326,21 +313,7 @@ jobs:
           ROOTFS="friendlywrt25-rk3528/friendlywrt/build_dir/target-aarch64_generic_musl/root-rockchip"
           MODULES="$ROOTFS/lib/modules/6.1.141"
           test -d "$MODULES"
-          grep -q '^CONFIG_USB_SERIAL_OPTION=m          grep -q "mediaurlbase '/luci-static/argon'" "$ROOTFS/etc/config/luci"
-          grep -q 'net.ipv6.conf.all.disable_ipv6=1' "$ROOTFS/etc/sysctl.conf"
-          test -d "$ROOTFS/www/luci-static/argon"
-          test -d "$ROOTFS/usr/lib/lua/luci/proto"
-          grep -Rqs 'proto.*xmm\|xmm' "$ROOTFS/lib/netifd" "$ROOTFS/usr/lib" || true
-          echo "Rootfs checks passed; package presence was verified before eMMC packaging."
-
-      - name: Upload DOM LTE WRT eMMC image
-        uses: actions/upload-artifact@v4
-        with:
-          name: dom-lte-wrt-nanopi-zero2-sd-and-emmc
-          path: output/
-          if-no-files-found: error
-          retention-days: 14
- friendlywrt25-rk3528/kernel/.config
+          grep -q '^CONFIG_USB_SERIAL_OPTION=m$' friendlywrt25-rk3528/kernel/.config
           test -s "$MODULES/option.ko"
           for module in cdc_ncm tun nft_tproxy nft_socket nf_tproxy_ipv4 nf_socket_ipv4; do
             test -s "$MODULES/$module.ko"
@@ -352,10 +325,9 @@ jobs:
           grep -q 'net.ipv6.conf.all.disable_ipv6=1' "$ROOTFS/etc/sysctl.conf"
           test -d "$ROOTFS/www/luci-static/argon"
           test -d "$ROOTFS/usr/lib/lua/luci/proto"
-          grep -Rqs 'proto.*xmm\|xmm' "$ROOTFS/lib/netifd" "$ROOTFS/usr/lib" || true
-          echo "Rootfs checks passed; package presence was verified before eMMC packaging."
+          echo "Kernel modules and rootfs checks passed."
 
-      - name: Upload DOM LTE WRT eMMC image
+      - name: Upload DOM LTE WRT SD and eMMC images
         uses: actions/upload-artifact@v4
         with:
           name: dom-lte-wrt-nanopi-zero2-sd-and-emmc

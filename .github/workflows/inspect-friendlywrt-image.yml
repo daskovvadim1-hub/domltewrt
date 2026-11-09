@@ -1,0 +1,99 @@
+name: Inspect official FriendlyWrt 25.12 image — NanoPi Zero2
+
+on:
+  push:
+    branches:
+      - nanopi-zero2-friendlywrt-test
+    paths:
+      - ".github/workflows/inspect-friendlywrt-image.yml"
+      - "docs/FRIENDLYWRT-25.12-TEST-PLAN.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-official-image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Download pinned FriendlyELEC non-Docker image
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p image-work report
+          cd image-work
+          URL="https://github.com/friendlyarm/Actions-FriendlyWrt/releases/download/FriendlyWrt-2026-10-13/R28S-Zero2-NEO3Plus-Series-FriendlyWrt-25.12.img.gz"
+          curl -fL --retry 3 "$URL" -o friendlywrt.img.gz
+          echo "0724d870ff5750d99093d535f8386ea24b22bc5567e9ef7c17ad034bbb829cac  friendlywrt.img.gz" | sha256sum -c -
+          gzip -t friendlywrt.img.gz
+          sha256sum friendlywrt.img.gz | tee ../report/image-sha256.txt
+          stat -c 'compressed_bytes=%s' friendlywrt.img.gz | tee ../report/image-size.txt
+          gzip -dc friendlywrt.img.gz > friendlywrt.img
+          sha256sum friendlywrt.img | tee ../report/raw-image-sha256.txt
+          file friendlywrt.img | tee ../report/image-file.txt
+          sudo losetup --find --show --partscan friendlywrt.img | tee ../report/loop-device.txt
+
+      - name: Inspect partitions and extract read-only rootfs metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          LOOP="$(cat report/loop-device.txt)"
+          cleanup() {
+            if [ -n "${MOUNTED:-}" ]; then sudo umount "$MOUNTED" || true; fi
+            sudo losetup -d "$LOOP" || true
+          }
+          trap cleanup EXIT
+          sudo lsblk -o NAME,SIZE,FSTYPE,LABEL,PARTLABEL,PARTUUID "$LOOP" | tee report/partitions.txt
+          mkdir -p inspect-root
+          FOUND=0
+          while read -r PART FSTYPE; do
+            [ -n "$FSTYPE" ] || continue
+            case "$FSTYPE" in
+              ext4|squashfs)
+                if [ "$FSTYPE" = "ext4" ]; then OPTS="ro,noload"; else OPTS="ro"; fi
+                if sudo mount -o "$OPTS" "$PART" inspect-root 2>/dev/null; then
+                  if [ -f inspect-root/etc/openwrt_release ] || [ -f inspect-root/etc/apk/arch ]; then
+                    FOUND=1
+                    echo "rootfs_partition=$PART" | tee report/rootfs-location.txt
+                    [ ! -f inspect-root/etc/openwrt_release ] || cp inspect-root/etc/openwrt_release report/openwrt_release.txt
+                    [ ! -f inspect-root/etc/apk/arch ] || cp inspect-root/etc/apk/arch report/apk-arch.txt
+                    [ ! -f inspect-root/etc/apk/repositories ] || cp inspect-root/etc/apk/repositories report/apk-repositories.txt
+                    [ ! -f inspect-root/etc/apk/repositories.d/dom-lte.list ] || cp inspect-root/etc/apk/repositories.d/dom-lte.list report/existing-extra-repositories.txt
+                    find inspect-root/lib/modules -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort > report/kernel-module-releases.txt || true
+                    if [ -f inspect-root/lib/apk/db/installed ]; then
+                      cp inspect-root/lib/apk/db/installed report/apk-installed-db.txt
+                      grep -E '^P:(dockerd|luci-app-dockerman|containerd|docker-compose)$' inspect-root/lib/apk/db/installed > report/docker-packages.txt || true
+                    fi
+                    if [ -f inspect-root/usr/lib/opkg/status ]; then
+                      cp inspect-root/usr/lib/opkg/status report/opkg-status.txt
+                    fi
+                    find inspect-root/etc -maxdepth 2 -type f \( -name '*release*' -o -name 'os-release' -o -path '*/apk/arch' \) -print > report/os-metadata-files.txt
+                    sudo umount inspect-root
+                    break
+                  fi
+                  sudo umount inspect-root
+                fi
+                ;;
+            esac
+          done < <(sudo lsblk -lnpo NAME,FSTYPE "$LOOP" | tail -n +2)
+          if [ "$FOUND" -ne 1 ]; then
+            echo "Could not identify mounted FriendlyWrt root filesystem or APK metadata." >&2
+            exit 1
+          fi
+          {
+            echo "### Official FriendlyWrt image inspection"
+            echo "- Image: R28S-Zero2-NEO3Plus-Series-FriendlyWrt-25.12.img.gz"
+            echo "- Release: FriendlyWrt-2026-10-13"
+            echo "- Image is the non-Docker variant."
+            echo "- Root filesystem was mounted read-only; no physical media was accessed."
+            echo "- APK architecture and kernel module release are attached as artifacts."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload offline inspection report
+        uses: actions/upload-artifact@v4
+        with:
+          name: friendlywrt-25.12-official-image-inspection
+          path: report/
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,32 @@
+name: Validate FriendlyWrt ARM64 external feeds
+
+on:
+  push:
+    branches:
+      - nanopi-zero2-friendlywrt-test
+    paths:
+      - ".github/workflows/validate-friendlywrt-feeds.yml"
+      - "scripts/validate-friendlywrt-feeds.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-arm64-feeds:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: nanopi-zero2-friendlywrt-test
+
+      - name: Validate signed aarch64_generic package feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/work:ro" \
+            -w /work \
+            alpine:3.24 \
+            sh scripts/validate-friendlywrt-feeds.sh

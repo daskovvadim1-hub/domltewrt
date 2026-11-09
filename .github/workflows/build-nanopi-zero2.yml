@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - nanopi-zero2
+      - nanopi-zero2-friendlywrt-test
     paths:
       - "docs/PORT-NANOPI-ZERO2.md"
       - "config/packages-nanopi-zero2.txt"
@@ -38,7 +38,7 @@ jobs:
       - name: Checkout DOM LTE WRT overlay
         uses: actions/checkout@v4
         with:
-          ref: nanopi-zero2
+          ref: nanopi-zero2-friendlywrt-test
 
       - name: Restore RK3528 compiler cache
         uses: actions/cache/restore@v4
@@ -73,10 +73,13 @@ jobs:
           cd friendlywrt25-rk3528/friendlywrt
           grep -q '^src-git modemfeed ' feeds.conf.default || \
             echo 'src-git modemfeed https://github.com/koshev-msk/modemfeed.git' >> feeds.conf.default
+          grep -q '^src-git modemfeed ' feeds.conf.default || \
+            echo 'src-git modemfeed https://github.com/koshev-msk/modemfeed.git' >> feeds.conf.default
           grep -q '^src-git modem5g ' feeds.conf.default || \
             echo 'src-git modem5g https://github.com/fildunsky/luci-app-5gmodem.git' >> feeds.conf.default
-          ./scripts/feeds update modem5g
-          ./scripts/feeds install luci-app-5gmodem
+          ./scripts/feeds update modemfeed modem5g
+          ./scripts/feeds install -p modem5g luci-app-5gmodem
+          ./scripts/feeds install -p modemfeed luci-proto-xmm xmm-modem
           mkdir -p ../configs/rockchip
           cat > ../configs/rockchip/06-dom-lte <<'EOF'
           CONFIG_PACKAGE_ca-bundle=y
@@ -143,6 +146,41 @@ jobs:
           a = s.index(start)
           b = s.index(end, a)
           p.write_text(s[:a] + "    # rtw88 intentionally omitted: no external Realtek Wi-Fi adapter is required.\\n\\n" + s[b:])
+          PY
+
+      - name: Enforce Fibocom and routing kernel modules in FriendlyELEC 6.1 kernel
+        shell: bash
+        run: |
+          set -euxo pipefail
+          DEFCONFIG="$GITHUB_WORKSPACE/friendlywrt25-rk3528/kernel/arch/arm64/configs/nanopi5_linux_defconfig"
+          test -f "$DEFCONFIG"
+          python3 - "$DEFCONFIG" <<'PY'
+          import pathlib, re, sys
+          p = pathlib.Path(sys.argv[1])
+          s = p.read_text()
+          required = {
+              "CONFIG_USB_SERIAL": "y",
+              "CONFIG_USB_SERIAL_OPTION": "m",
+              "CONFIG_USB_ACM": "y",
+              "CONFIG_USB_NET_CDC_NCM": "m",
+              "CONFIG_USB_NET_RNDIS_HOST": "y",
+              "CONFIG_TUN": "m",
+              "CONFIG_NF_TPROXY": "m",
+              "CONFIG_NF_SOCKET": "m",
+              "CONFIG_NFT_TPROXY": "m",
+              "CONFIG_NFT_SOCKET": "m",
+          }
+          for key, value in required.items():
+              pattern = rf"^(?:# )?{re.escape(key)}(?:=.*| is not set)$"
+              replacement = f"{key}={value}"
+              if re.search(pattern, s, flags=re.M):
+                  s = re.sub(pattern, replacement, s, flags=re.M)
+              else:
+                  s += f"\n{replacement}\n"
+          p.write_text(s)
+          print("Enforced vendor-kernel module configuration:")
+          for key, value in required.items():
+              print(f"{key}={value}")
           PY
 
       - name: Configure Git identity for upstream patching
@@ -216,9 +254,9 @@ jobs:
 
           cat | sudo tee "$ROOTFS/etc/apk/repositories.d/dom-lte.list" >/dev/null <<'EOF'
           https://raw.githubusercontent.com/4IceG/Modem-extras-apk/main/myapk/packages.adb
-          https://sourceforge.net/projects/openwrt-passwall-build/files/releases/packages-25.12/aarch64_cortex-a53/passwall_packages/packages.adb
-          https://sourceforge.net/projects/openwrt-passwall-build/files/releases/packages-25.12/aarch64_cortex-a53/passwall_luci/packages.adb
-          https://sourceforge.net/projects/openwrt-passwall-build/files/releases/packages-25.12/aarch64_cortex-a53/passwall2/packages.adb
+          https://master.dl.sourceforge.net/project/openwrt-passwall-build/releases/packages-25.12/aarch64_generic/passwall_packages/packages.adb
+          https://master.dl.sourceforge.net/project/openwrt-passwall-build/releases/packages-25.12/aarch64_generic/passwall_luci/packages.adb
+          https://master.dl.sourceforge.net/project/openwrt-passwall-build/releases/packages-25.12/aarch64_generic/passwall2/packages.adb
           EOF
 
           sudo mount --bind /dev "$ROOTFS/dev"
@@ -235,7 +273,7 @@ jobs:
           sudo chroot "$ROOTFS" /sbin/apk add --no-cache \
             luci-app-3ginfo-lite luci-i18n-3ginfo-lite-ru \
             luci-app-modemdata modemdata luci-i18n-modemdata-ru \
-            luci-app-modemband modemband \
+            luci-app-modemband modemband luci-i18n-modemband-ru \
             luci-app-sms-tool-js luci-i18n-sms-tool-js-ru \
             luci-app-passwall2 luci-i18n-passwall2-ru \
             xray-core sing-box v2ray-geoip v2ray-geosite geoview tcping
@@ -258,6 +296,7 @@ jobs:
           sudo chroot "$ROOTFS" /sbin/apk info -e xmm-modem
           sudo chroot "$ROOTFS" /sbin/apk info -e luci-app-passwall2
           sudo chroot "$ROOTFS" /sbin/apk info -e luci-app-modemband
+          sudo chroot "$ROOTFS" /sbin/apk info -e luci-i18n-modemband-ru
 
           # Fail the build if any Docker runtime or LuCI Docker app slipped in.
           for package in dockerd luci-app-dockerman containerd docker-compose; do
@@ -280,11 +319,35 @@ jobs:
           find -L out -type f \\( -iname '*.img' -o -iname '*.img.gz' -o -iname '*.raw' -o -iname '*.raw.gz' -o -iname '*.tgz' -o -iname '*.zip' \\) -size +1M -exec cp --parents {} ../output/ \\;
           test -n "$(find ../output -type f -print -quit)"
 
-      - name: Verify firmware contents
+      - name: Verify firmware contents and FriendlyELEC kernel ABI
         shell: bash
         run: |
           set -euxo pipefail
           ROOTFS="friendlywrt25-rk3528/friendlywrt/build_dir/target-aarch64_generic_musl/root-rockchip"
+          MODULES="$ROOTFS/lib/modules/6.1.141"
+          test -d "$MODULES"
+          grep -q '^CONFIG_USB_SERIAL_OPTION=m          grep -q "mediaurlbase '/luci-static/argon'" "$ROOTFS/etc/config/luci"
+          grep -q 'net.ipv6.conf.all.disable_ipv6=1' "$ROOTFS/etc/sysctl.conf"
+          test -d "$ROOTFS/www/luci-static/argon"
+          test -d "$ROOTFS/usr/lib/lua/luci/proto"
+          grep -Rqs 'proto.*xmm\|xmm' "$ROOTFS/lib/netifd" "$ROOTFS/usr/lib" || true
+          echo "Rootfs checks passed; package presence was verified before eMMC packaging."
+
+      - name: Upload DOM LTE WRT eMMC image
+        uses: actions/upload-artifact@v4
+        with:
+          name: dom-lte-wrt-nanopi-zero2-sd-and-emmc
+          path: output/
+          if-no-files-found: error
+          retention-days: 14
+ friendlywrt25-rk3528/kernel/.config
+          test -s "$MODULES/option.ko"
+          for module in cdc_ncm tun nft_tproxy nft_socket nf_tproxy_ipv4 nf_socket_ipv4; do
+            test -s "$MODULES/$module.ko"
+          done
+          sudo apt-get update
+          sudo apt-get install -y kmod
+          test "$(modinfo -F vermagic "$MODULES/option.ko" | awk '{print $1}')" = "6.1.141"
           grep -q "mediaurlbase '/luci-static/argon'" "$ROOTFS/etc/config/luci"
           grep -q 'net.ipv6.conf.all.disable_ipv6=1' "$ROOTFS/etc/sysctl.conf"
           test -d "$ROOTFS/www/luci-static/argon"
